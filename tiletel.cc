@@ -77,15 +77,15 @@ struct Screen {
             if (window == NULL)
                 throw std::runtime_error("Could not create window.");
 
-            renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
-
-            if (renderer == NULL)
-                throw std::runtime_error("Could not create renderer");
-
             screen = SDL_GetWindowSurface(window);
 
             if (screen == NULL)
                 throw std::runtime_error("Could not create window surface");
+
+            renderer = SDL_CreateSoftwareRenderer(screen);
+
+            if (renderer == NULL)
+                throw std::runtime_error("Could not create renderer");
 
             if (IMG_Init(IMG_INIT_PNG) == 0)
                 throw std::runtime_error("Could not init SDL_Image");
@@ -186,16 +186,6 @@ struct Screen {
 
                 std::cout << "[[[ " << SDL_GetPixelFormatName(g->format->format) << " " << g->pitch << " : " 
                           << g->w << " " << g->h << std::endl;
-
-                uint8_t* pix;
-                for (unsigned int y = 0; y < g->h; ++y) {
-                    pix = (uint8_t*)g->pixels;
-                    pix += g->pitch*y;
-                    for (unsigned int x = 0; x < g->w; ++x, ++pix) {
-                        std::cout << (int)*pix;
-                    }
-                    std::cout << std::endl;
-                }
             }
         }
 
@@ -203,20 +193,35 @@ struct Screen {
         to.x = x * tw;
         to.y = y * th;
         to.w = tw; //tw;
-        to.h = font_h; //th;
+        to.h = th; //th;
 
-        SDL_Color bgfg[2] = { { br, bg, bb, 0xFF }, { fr, fg, fb, 0xFF } };
-        SDL_SetPaletteColors(g->format->palette, &bgfg[0], 0, 2);
+        SDL_SetRenderDrawColor(renderer, br, bg, bb, 0xFF);
+        SDL_RenderFillRect(renderer, &to);
 
-        SDL_Surface* conv = SDL_ConvertSurface(g, screen->format, 0);
+        SDL_SetRenderDrawColor(renderer, fr, fg, fb, 0xFF);
 
-        if (conv == NULL)
-            throw std::runtime_error("Failed to convert surface");
+        uint8_t* pix;
+        for (int y = 0; y < g->h; ++y) {
+            pix = (uint8_t*)g->pixels;
+            pix += g->pitch*y;
+            for (int x = 0; x < g->w; ++x, ++pix) {
+                if (*pix) {
+                    SDL_RenderDrawPoint(renderer, to.x + 2*x, to.y + y);
+                }
+            }
+        }
 
-        if (SDL_BlitScaled(conv, NULL, screen, &to) < 0)
-            throw std::runtime_error("Failed to blit");
+        SDL_SetRenderDrawColor(renderer, (2*fr)/3, (2*fg)/3, (2*fb)/3, 0xFF);
 
-        SDL_FreeSurface(conv);
+        for (int y = 0; y < g->h; ++y) {
+            pix = (uint8_t*)g->pixels;
+            pix += g->pitch*y;
+            for (int x = 0; x < g->w; ++x, ++pix) {
+                if (*pix) {
+                    SDL_RenderDrawPoint(renderer, to.x + 2*x + 1, to.y + y);
+                }
+            }
+        }
     }
 
     template <typename FUNC_R, typename FUNC_K>
@@ -235,6 +240,12 @@ struct Screen {
                 sh = e.window.data2/th;
 
                 screen = SDL_GetWindowSurface(window);
+
+                SDL_DestroyRenderer(renderer);
+                renderer = SDL_CreateSoftwareRenderer(screen);
+
+                if (renderer == NULL)
+                    throw std::runtime_error("Could not create renderer");
 
                 resizer(*this);
             }
@@ -692,6 +703,9 @@ int main(int argc, char** argv) {
                         std::bind(resizer, std::placeholders::_1, std::ref(sock), std::ref(vte)),
                         std::bind(keypressor, std::placeholders::_1, std::placeholders::_2, std::ref(vte))
             );
+
+        SDL_Event event;
+        SDL_WaitEvent(&event);
 
     } catch (std::exception& e) {
         std::cout << "Fatal Error: " << e.what() << std::endl;
