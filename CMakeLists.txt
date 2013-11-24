@@ -36,7 +36,7 @@ include_directories(../libtsm libtsm)
 
 #endif(NOT RAGEL)
 
-add_executable(tiletel tiletel2.cc 
+add_executable(tiletel tiletel.cc 
    libtsm/external/wcwidth.c
    libtsm/src/tsm_vte_charsets.c
    libtsm/src/shl_htable.c 

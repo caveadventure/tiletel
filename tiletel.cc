@@ -183,6 +183,19 @@ struct Screen {
             if (font_w == 0 || font_h == 0) {
                 font_w = g->w;
                 font_h = g->h;
+
+                std::cout << "[[[ " << SDL_GetPixelFormatName(g->format->format) << " " << g->pitch << " : " 
+                          << g->w << " " << g->h << std::endl;
+
+                uint8_t* pix;
+                for (unsigned int y = 0; y < g->h; ++y) {
+                    pix = (uint8_t*)g->pixels;
+                    pix += g->pitch*y;
+                    for (unsigned int x = 0; x < g->w; ++x, ++pix) {
+                        std::cout << (int)*pix;
+                    }
+                    std::cout << std::endl;
+                }
             }
         }
 
