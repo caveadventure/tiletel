@@ -51,7 +51,15 @@ struct Screen {
 
     bool done;
 
-    std::unordered_map<uint32_t, SDL_Surface*> glyphs;
+    struct glyph_t {
+        SDL_Surface* bitmap;
+        size_t w;
+        size_t h;
+
+        glyph_t() : bitmap(NULL), w(0), h(0) {}
+    };
+
+    std::unordered_map<uint32_t, glyph_t> glyphs;
 
 
     Screen(unsigned int tilew, unsigned int tileh, 
@@ -135,7 +143,7 @@ struct Screen {
     ~Screen() {
 
         for (auto& g : glyphs) {
-            SDL_FreeSurface(g.second);
+            SDL_FreeSurface(g.second.bitmap);
         }
 
         TTF_CloseFont(font);
@@ -146,7 +154,7 @@ struct Screen {
         SDL_Quit();
     }
 
-    void tile(unsigned int x, unsigned int y, uint32_t ti,
+    void tile(unsigned int x, unsigned int y, uint32_t ti, unsigned int cwidth,
               uint8_t fr, uint8_t fg, uint8_t fb,
               uint8_t br, uint8_t bg, uint8_t bb) {
 
@@ -167,33 +175,27 @@ struct Screen {
         from.y *= th;
 #endif
 
-        SDL_Surface*& g = glyphs[ti];
+        glyph_t& g = glyphs[ti];
 
-        static unsigned int font_w = 0;
-        static unsigned int font_h = 0;
-
-        if (g == NULL) {
-            std::cout << "!!!" << std::endl;
+        if (g.bitmap == NULL) {
             SDL_Color fgc = { 0xFF, 0xFF, 0xFF };
-            g = TTF_RenderGlyph_Solid(font, ti, fgc);
+            g.bitmap = TTF_RenderGlyph_Solid(font, ti, fgc);
 
-            if (g == NULL)
+            if (g.bitmap == NULL)
                 throw std::runtime_error("Could not render glyph");
 
-            if (font_w == 0 || font_h == 0) {
-                font_w = g->w;
-                font_h = g->h;
+            g.w = g.bitmap->w;
+            g.h = g.bitmap->h;
 
-                std::cout << "[[[ " << SDL_GetPixelFormatName(g->format->format) << " " << g->pitch << " : " 
-                          << g->w << " " << g->h << std::endl;
-            }
+            std::cout << "[[[ " << SDL_GetPixelFormatName(g.bitmap->format->format) << " " << g.bitmap->pitch << " : " 
+                      << g.bitmap->w << " " << g.bitmap->h << std::endl;
         }
 
         SDL_Rect to;
         to.x = x * tw;
         to.y = y * th;
-        to.w = tw; //tw;
-        to.h = th; //th;
+        to.w = tw * cwidth;
+        to.h = th;
 
         SDL_SetRenderDrawColor(renderer, br, bg, bb, 0xFF);
         SDL_RenderFillRect(renderer, &to);
@@ -201,24 +203,12 @@ struct Screen {
         SDL_SetRenderDrawColor(renderer, fr, fg, fb, 0xFF);
 
         uint8_t* pix;
-        for (int y = 0; y < g->h; ++y) {
-            pix = (uint8_t*)g->pixels;
-            pix += g->pitch*y;
-            for (int x = 0; x < g->w; ++x, ++pix) {
+        for (int y = 0; y < g.bitmap->h; ++y) {
+            pix = (uint8_t*)g.bitmap->pixels;
+            pix += g.bitmap->pitch*y;
+            for (int x = 0; x < g.bitmap->w; ++x, ++pix) {
                 if (*pix) {
-                    SDL_RenderDrawPoint(renderer, to.x + 2*x, to.y + y);
-                }
-            }
-        }
-
-        SDL_SetRenderDrawColor(renderer, (2*fr)/3, (2*fg)/3, (2*fb)/3, 0xFF);
-
-        for (int y = 0; y < g->h; ++y) {
-            pix = (uint8_t*)g->pixels;
-            pix += g->pitch*y;
-            for (int x = 0; x < g->w; ++x, ++pix) {
-                if (*pix) {
-                    SDL_RenderDrawPoint(renderer, to.x + 2*x + 1, to.y + y);
+                    SDL_RenderDrawPoint(renderer, to.x + x, to.y + y);
                 }
             }
         }
@@ -388,21 +378,24 @@ int tsm_drawer_cb(struct tsm_screen* screen, uint32_t id, const uint32_t* ch, si
                   unsigned int posx, unsigned int posy, const struct tsm_screen_attr* attr, tsm_age_t age, 
                   void* data) {
 
+    if (cwidth == 0) {
+        std::cout << "OOPS " << len << std::endl;
+        return 0;
+    }
+
     Screen* draw = (Screen*)data;
 
-    for (unsigned int i = 0; i < len; ++i) {
+    for (unsigned int i = 0; i < len; i += cwidth) {
         uint32_t c = ch[i];
 
-        for (unsigned int j = 0; j < cwidth; ++j) {
-            draw->tile(posx+j, posy, c, 
-                       attr->fr, attr->fg, attr->fb,
-                       attr->br, attr->bg, attr->bb);
-        }
+        draw->tile(posx+i, posy, c, cwidth,
+                   attr->fr, attr->fg, attr->fb,
+                   attr->br, attr->bg, attr->bb);
     }
 
     if (len == 0) {
         for (unsigned int j = 0; j < cwidth; ++j) {
-            draw->tile(posx+j, posy, (uint32_t)' ', 
+            draw->tile(posx+j, posy, (uint32_t)' ', 1,
                        attr->fr, attr->fg, attr->fb,
                        attr->br, attr->bg, attr->bb);
         }
@@ -691,8 +684,9 @@ int main(int argc, char** argv) {
 
     try {
 
-        Screen screen(12, 12, 
-                      "terminus.ttf",
+        Screen screen(6, 12, 
+                      "fireflysung.ttf",
+                      //"terminus.ttf",
                       70, 50);
 
         Socket sock(argv[1], ::atoi(argv[2]));
