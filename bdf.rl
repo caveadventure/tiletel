@@ -120,6 +120,7 @@ void parse_bdf(const std::string& filename, Font& out) {
             >start $push;
 
         junk = [^\n]+ '\n';
+        optjunk = [^\n]* '\n';
 
         startchar = 'STARTCHAR' junk;
 
@@ -146,7 +147,7 @@ void parse_bdf(const std::string& filename, Font& out) {
 
         bitmapline = bitmapchar+ '\n';
         bitmap = 
-            'BITMAP' junk
+            'BITMAP' optjunk
             (bitmapline+)
              ;
 
@@ -163,7 +164,7 @@ void parse_bdf(const std::string& filename, Font& out) {
         glyph = 
             startchar
             glyphline* :>> bitmap
-            'ENDCHAR' [^\n]* '\n' 
+            'ENDCHAR' optjunk
         ;
 
         fontboundingbox = 
@@ -195,7 +196,7 @@ void parse_bdf(const std::string& filename, Font& out) {
            (header+)
            'CHARS' junk
            (glyph+) 
-           'ENDFONT' [^\n]* '\n'
+           'ENDFONT' optjunk
         ;
 
       main := font ;

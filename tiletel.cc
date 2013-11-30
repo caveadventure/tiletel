@@ -831,7 +831,7 @@ int main(int argc, char** argv) {
                       //"fireflysung.ttf",
                       //"terminus.ttf",
                       //"DroidSansFallbackFull.ttf",
-                      70, 50);
+                      70, 25);
 
         Socket sock(argv[1], ::atoi(argv[2]));
 

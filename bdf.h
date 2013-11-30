@@ -95,7 +95,7 @@ void parse_bdf(const std::string& filename, Font& out) {
     Font::glyph* glyph = &(out.glyphs[0]);
 
     
-#line 203 "bdf.rl"
+#line 204 "bdf.rl"
 
 /*
 
@@ -104,20 +104,20 @@ void parse_bdf(const std::string& filename, Font& out) {
     
 #line 106 "bdf.h"
 static const int BDFParser_start = 1;
-static const int BDFParser_first_final = 188;
+static const int BDFParser_first_final = 187;
 static const int BDFParser_error = 0;
 
 static const int BDFParser_en_main = 1;
 
 
-#line 209 "bdf.rl"
+#line 210 "bdf.rl"
     
 #line 116 "bdf.h"
 	{
 	 state.cs = BDFParser_start;
 	}
 
-#line 210 "bdf.rl"
+#line 211 "bdf.rl"
 
     bool done = false;
 
@@ -145,11 +145,11 @@ static const int BDFParser_en_main = 1;
 case 1:
 	switch( (*( state.p)) ) {
 		case 67: goto st2;
-		case 68: goto st87;
-		case 70: goto st92;
-		case 77: goto st119;
-		case 83: goto st127;
-		case 86: goto st160;
+		case 68: goto st86;
+		case 70: goto st91;
+		case 77: goto st118;
+		case 83: goto st126;
+		case 86: goto st159;
 	}
 	goto st0;
 st0:
@@ -168,7 +168,7 @@ st3:
 case 3:
 	switch( (*( state.p)) ) {
 		case 77: goto st4;
-		case 78: goto st177;
+		case 78: goto st176;
 	}
 	goto st0;
 st4:
@@ -219,11 +219,11 @@ st10:
 case 10:
 	switch( (*( state.p)) ) {
 		case 67: goto st11;
-		case 68: goto st87;
-		case 70: goto st92;
-		case 77: goto st119;
-		case 83: goto st127;
-		case 86: goto st160;
+		case 68: goto st86;
+		case 70: goto st91;
+		case 77: goto st118;
+		case 83: goto st126;
+		case 86: goto st159;
 	}
 	goto st0;
 st11:
@@ -347,8 +347,8 @@ case 27:
 	if ( (*( state.p)) == 10 )
 		goto st28;
 	goto st27;
-tr96:
-#line 128 "bdf.rl"
+tr95:
+#line 129 "bdf.rl"
 	{ glyph = &(out.glyphs[toint(state.match)]); }
 	goto st28;
 st28:
@@ -358,10 +358,10 @@ case 28:
 #line 359 "bdf.h"
 	switch( (*( state.p)) ) {
 		case 66: goto st29;
-		case 68: goto st67;
-		case 69: goto st72;
-		case 83: goto st67;
-		case 86: goto st82;
+		case 68: goto st66;
+		case 69: goto st71;
+		case 83: goto st66;
+		case 86: goto st81;
 	}
 	goto st0;
 st29:
@@ -437,7 +437,7 @@ case 33:
 		goto tr43;
 	goto st0;
 tr43:
-#line 134 "bdf.rl"
+#line 135 "bdf.rl"
 	{ glyph->w = toint(state.match); check_w(out, glyph->w); }
 	goto st34;
 st34:
@@ -487,7 +487,7 @@ case 35:
 		goto tr47;
 	goto st0;
 tr47:
-#line 135 "bdf.rl"
+#line 136 "bdf.rl"
 	{ check_h(out, toint(state.match)); }
 	goto st36;
 st36:
@@ -647,19 +647,33 @@ st46:
 		goto _test_eof46;
 case 46:
 	if ( (*( state.p)) == 10 )
-		goto st0;
-	goto st47;
+		goto st47;
+	goto st46;
 st47:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof47;
 case 47:
-	if ( (*( state.p)) == 10 )
-		goto st48;
-	goto st47;
+	if ( (*( state.p)) > 57 ) {
+		if ( 65 <= (*( state.p)) && (*( state.p)) <= 70 )
+			goto tr62;
+	} else if ( (*( state.p)) >= 48 )
+		goto tr62;
+	goto st0;
+tr62:
+#line 143 "bdf.rl"
+	{ hexchar(bitmapchar, (*( state.p))); }
+	goto st48;
+tr65:
+#line 145 "bdf.rl"
+	{ glyph->bitmap.push_back(bitmapchar); }
+#line 143 "bdf.rl"
+	{ hexchar(bitmapchar, (*( state.p))); }
+	goto st48;
 st48:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof48;
 case 48:
+#line 677 "bdf.h"
 	if ( (*( state.p)) > 57 ) {
 		if ( 65 <= (*( state.p)) && (*( state.p)) <= 70 )
 			goto tr63;
@@ -667,264 +681,254 @@ case 48:
 		goto tr63;
 	goto st0;
 tr63:
-#line 142 "bdf.rl"
-	{ hexchar(bitmapchar, (*( state.p))); }
-	goto st49;
-tr66:
 #line 144 "bdf.rl"
-	{ glyph->bitmap.push_back(bitmapchar); }
-#line 142 "bdf.rl"
 	{ hexchar(bitmapchar, (*( state.p))); }
 	goto st49;
 st49:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof49;
 case 49:
-#line 684 "bdf.h"
+#line 692 "bdf.h"
+	if ( (*( state.p)) == 10 )
+		goto tr64;
 	if ( (*( state.p)) > 57 ) {
 		if ( 65 <= (*( state.p)) && (*( state.p)) <= 70 )
-			goto tr64;
+			goto tr65;
 	} else if ( (*( state.p)) >= 48 )
-		goto tr64;
+		goto tr65;
 	goto st0;
 tr64:
-#line 143 "bdf.rl"
-	{ hexchar(bitmapchar, (*( state.p))); }
+#line 145 "bdf.rl"
+	{ glyph->bitmap.push_back(bitmapchar); }
 	goto st50;
 st50:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof50;
 case 50:
-#line 699 "bdf.h"
-	if ( (*( state.p)) == 10 )
-		goto tr65;
+#line 709 "bdf.h"
+	if ( (*( state.p)) == 69 )
+		goto tr66;
 	if ( (*( state.p)) > 57 ) {
 		if ( 65 <= (*( state.p)) && (*( state.p)) <= 70 )
-			goto tr66;
+			goto tr62;
 	} else if ( (*( state.p)) >= 48 )
-		goto tr66;
+		goto tr62;
 	goto st0;
-tr65:
-#line 144 "bdf.rl"
-	{ glyph->bitmap.push_back(bitmapchar); }
+tr66:
+#line 143 "bdf.rl"
+	{ hexchar(bitmapchar, (*( state.p))); }
 	goto st51;
 st51:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof51;
 case 51:
-#line 716 "bdf.h"
-	if ( (*( state.p)) == 69 )
-		goto tr67;
+#line 726 "bdf.h"
+	if ( (*( state.p)) == 78 )
+		goto st52;
 	if ( (*( state.p)) > 57 ) {
 		if ( 65 <= (*( state.p)) && (*( state.p)) <= 70 )
 			goto tr63;
 	} else if ( (*( state.p)) >= 48 )
 		goto tr63;
 	goto st0;
-tr67:
-#line 142 "bdf.rl"
-	{ hexchar(bitmapchar, (*( state.p))); }
-	goto st52;
 st52:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof52;
 case 52:
-#line 733 "bdf.h"
-	if ( (*( state.p)) == 78 )
+	if ( (*( state.p)) == 68 )
 		goto st53;
-	if ( (*( state.p)) > 57 ) {
-		if ( 65 <= (*( state.p)) && (*( state.p)) <= 70 )
-			goto tr64;
-	} else if ( (*( state.p)) >= 48 )
-		goto tr64;
 	goto st0;
 st53:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof53;
 case 53:
-	if ( (*( state.p)) == 68 )
+	if ( (*( state.p)) == 67 )
 		goto st54;
 	goto st0;
 st54:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof54;
 case 54:
-	if ( (*( state.p)) == 67 )
+	if ( (*( state.p)) == 72 )
 		goto st55;
 	goto st0;
 st55:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof55;
 case 55:
-	if ( (*( state.p)) == 72 )
+	if ( (*( state.p)) == 65 )
 		goto st56;
 	goto st0;
 st56:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof56;
 case 56:
-	if ( (*( state.p)) == 65 )
+	if ( (*( state.p)) == 82 )
 		goto st57;
 	goto st0;
 st57:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof57;
 case 57:
-	if ( (*( state.p)) == 82 )
+	if ( (*( state.p)) == 10 )
 		goto st58;
-	goto st0;
+	goto st57;
 st58:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof58;
 case 58:
-	if ( (*( state.p)) == 10 )
-		goto st59;
-	goto st58;
+	switch( (*( state.p)) ) {
+		case 69: goto st59;
+		case 83: goto st18;
+	}
+	goto st0;
 st59:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof59;
 case 59:
-	switch( (*( state.p)) ) {
-		case 69: goto st60;
-		case 83: goto st18;
-	}
+	if ( (*( state.p)) == 78 )
+		goto st60;
 	goto st0;
 st60:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof60;
 case 60:
-	if ( (*( state.p)) == 78 )
+	if ( (*( state.p)) == 68 )
 		goto st61;
 	goto st0;
 st61:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof61;
 case 61:
-	if ( (*( state.p)) == 68 )
+	if ( (*( state.p)) == 70 )
 		goto st62;
 	goto st0;
 st62:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof62;
 case 62:
-	if ( (*( state.p)) == 70 )
+	if ( (*( state.p)) == 79 )
 		goto st63;
 	goto st0;
 st63:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof63;
 case 63:
-	if ( (*( state.p)) == 79 )
+	if ( (*( state.p)) == 78 )
 		goto st64;
 	goto st0;
 st64:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof64;
 case 64:
-	if ( (*( state.p)) == 78 )
+	if ( (*( state.p)) == 84 )
 		goto st65;
 	goto st0;
 st65:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof65;
 case 65:
-	if ( (*( state.p)) == 84 )
-		goto st66;
+	if ( (*( state.p)) == 10 )
+		goto st187;
+	goto st65;
+st187:
+	if ( ++( state.p) == ( state.pe) )
+		goto _test_eof187;
+case 187:
 	goto st0;
 st66:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof66;
 case 66:
-	if ( (*( state.p)) == 10 )
-		goto st188;
-	goto st66;
-st188:
-	if ( ++( state.p) == ( state.pe) )
-		goto _test_eof188;
-case 188:
+	if ( (*( state.p)) == 87 )
+		goto st67;
 	goto st0;
 st67:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof67;
 case 67:
-	if ( (*( state.p)) == 87 )
+	if ( (*( state.p)) == 73 )
 		goto st68;
 	goto st0;
 st68:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof68;
 case 68:
-	if ( (*( state.p)) == 73 )
+	if ( (*( state.p)) == 68 )
 		goto st69;
 	goto st0;
 st69:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof69;
 case 69:
-	if ( (*( state.p)) == 68 )
+	if ( (*( state.p)) == 84 )
 		goto st70;
 	goto st0;
 st70:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof70;
 case 70:
-	if ( (*( state.p)) == 84 )
-		goto st71;
+	if ( (*( state.p)) == 72 )
+		goto st26;
 	goto st0;
 st71:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof71;
 case 71:
-	if ( (*( state.p)) == 72 )
-		goto st26;
+	if ( (*( state.p)) == 78 )
+		goto st72;
 	goto st0;
 st72:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof72;
 case 72:
-	if ( (*( state.p)) == 78 )
+	if ( (*( state.p)) == 67 )
 		goto st73;
 	goto st0;
 st73:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof73;
 case 73:
-	if ( (*( state.p)) == 67 )
+	if ( (*( state.p)) == 79 )
 		goto st74;
 	goto st0;
 st74:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof74;
 case 74:
-	if ( (*( state.p)) == 79 )
+	if ( (*( state.p)) == 68 )
 		goto st75;
 	goto st0;
 st75:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof75;
 case 75:
-	if ( (*( state.p)) == 68 )
+	if ( (*( state.p)) == 73 )
 		goto st76;
 	goto st0;
 st76:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof76;
 case 76:
-	if ( (*( state.p)) == 73 )
+	if ( (*( state.p)) == 78 )
 		goto st77;
 	goto st0;
 st77:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof77;
 case 77:
-	if ( (*( state.p)) == 78 )
+	if ( (*( state.p)) == 71 )
 		goto st78;
 	goto st0;
 st78:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof78;
 case 78:
-	if ( (*( state.p)) == 71 )
+	switch( (*( state.p)) ) {
+		case 13: goto st79;
+		case 32: goto st79;
+	}
+	if ( 9 <= (*( state.p)) && (*( state.p)) <= 10 )
 		goto st79;
 	goto st0;
 st79:
@@ -932,27 +936,16 @@ st79:
 		goto _test_eof79;
 case 79:
 	switch( (*( state.p)) ) {
-		case 13: goto st80;
-		case 32: goto st80;
-	}
-	if ( 9 <= (*( state.p)) && (*( state.p)) <= 10 )
-		goto st80;
-	goto st0;
-st80:
-	if ( ++( state.p) == ( state.pe) )
-		goto _test_eof80;
-case 80:
-	switch( (*( state.p)) ) {
-		case 13: goto st80;
-		case 32: goto st80;
+		case 13: goto st79;
+		case 32: goto st79;
 	}
 	if ( (*( state.p)) > 10 ) {
 		if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-			goto tr95;
+			goto tr94;
 	} else if ( (*( state.p)) >= 9 )
-		goto st80;
+		goto st79;
 	goto st0;
-tr95:
+tr94:
 #line 104 "bdf.rl"
 	{
             state.match.clear();
@@ -961,121 +954,130 @@ tr95:
 	{
             state.match += (*( state.p));
         }
-	goto st81;
-tr97:
+	goto st80;
+tr96:
 #line 108 "bdf.rl"
 	{
             state.match += (*( state.p));
         }
-	goto st81;
+	goto st80;
+st80:
+	if ( ++( state.p) == ( state.pe) )
+		goto _test_eof80;
+case 80:
+#line 969 "bdf.h"
+	if ( (*( state.p)) == 10 )
+		goto tr95;
+	if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
+		goto tr96;
+	goto st0;
 st81:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof81;
 case 81:
-#line 976 "bdf.h"
-	if ( (*( state.p)) == 10 )
-		goto tr96;
-	if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-		goto tr97;
+	if ( (*( state.p)) == 86 )
+		goto st82;
 	goto st0;
 st82:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof82;
 case 82:
-	if ( (*( state.p)) == 86 )
+	if ( (*( state.p)) == 69 )
 		goto st83;
 	goto st0;
 st83:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof83;
 case 83:
-	if ( (*( state.p)) == 69 )
+	if ( (*( state.p)) == 67 )
 		goto st84;
 	goto st0;
 st84:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof84;
 case 84:
-	if ( (*( state.p)) == 67 )
+	if ( (*( state.p)) == 84 )
 		goto st85;
 	goto st0;
 st85:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof85;
 case 85:
-	if ( (*( state.p)) == 84 )
-		goto st86;
+	if ( (*( state.p)) == 79 )
+		goto st25;
 	goto st0;
 st86:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof86;
 case 86:
-	if ( (*( state.p)) == 79 )
-		goto st25;
+	if ( (*( state.p)) == 87 )
+		goto st87;
 	goto st0;
 st87:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof87;
 case 87:
-	if ( (*( state.p)) == 87 )
+	if ( (*( state.p)) == 73 )
 		goto st88;
 	goto st0;
 st88:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof88;
 case 88:
-	if ( (*( state.p)) == 73 )
+	if ( (*( state.p)) == 68 )
 		goto st89;
 	goto st0;
 st89:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof89;
 case 89:
-	if ( (*( state.p)) == 68 )
+	if ( (*( state.p)) == 84 )
 		goto st90;
 	goto st0;
 st90:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof90;
 case 90:
-	if ( (*( state.p)) == 84 )
-		goto st91;
+	if ( (*( state.p)) == 72 )
+		goto st8;
 	goto st0;
 st91:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof91;
 case 91:
-	if ( (*( state.p)) == 72 )
-		goto st8;
+	if ( (*( state.p)) == 79 )
+		goto st92;
 	goto st0;
 st92:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof92;
 case 92:
-	if ( (*( state.p)) == 79 )
+	if ( (*( state.p)) == 78 )
 		goto st93;
 	goto st0;
 st93:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof93;
 case 93:
-	if ( (*( state.p)) == 78 )
+	if ( (*( state.p)) == 84 )
 		goto st94;
 	goto st0;
 st94:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof94;
 case 94:
-	if ( (*( state.p)) == 84 )
-		goto st95;
-	goto st0;
+	switch( (*( state.p)) ) {
+		case 10: goto st0;
+		case 66: goto st95;
+	}
+	goto st9;
 st95:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof95;
 case 95:
 	switch( (*( state.p)) ) {
-		case 10: goto st0;
-		case 66: goto st96;
+		case 10: goto st10;
+		case 79: goto st96;
 	}
 	goto st9;
 st96:
@@ -1084,7 +1086,7 @@ st96:
 case 96:
 	switch( (*( state.p)) ) {
 		case 10: goto st10;
-		case 79: goto st97;
+		case 85: goto st97;
 	}
 	goto st9;
 st97:
@@ -1093,7 +1095,7 @@ st97:
 case 97:
 	switch( (*( state.p)) ) {
 		case 10: goto st10;
-		case 85: goto st98;
+		case 78: goto st98;
 	}
 	goto st9;
 st98:
@@ -1102,7 +1104,7 @@ st98:
 case 98:
 	switch( (*( state.p)) ) {
 		case 10: goto st10;
-		case 78: goto st99;
+		case 68: goto st99;
 	}
 	goto st9;
 st99:
@@ -1111,7 +1113,7 @@ st99:
 case 99:
 	switch( (*( state.p)) ) {
 		case 10: goto st10;
-		case 68: goto st100;
+		case 73: goto st100;
 	}
 	goto st9;
 st100:
@@ -1120,7 +1122,7 @@ st100:
 case 100:
 	switch( (*( state.p)) ) {
 		case 10: goto st10;
-		case 73: goto st101;
+		case 78: goto st101;
 	}
 	goto st9;
 st101:
@@ -1129,7 +1131,7 @@ st101:
 case 101:
 	switch( (*( state.p)) ) {
 		case 10: goto st10;
-		case 78: goto st102;
+		case 71: goto st102;
 	}
 	goto st9;
 st102:
@@ -1138,7 +1140,7 @@ st102:
 case 102:
 	switch( (*( state.p)) ) {
 		case 10: goto st10;
-		case 71: goto st103;
+		case 66: goto st103;
 	}
 	goto st9;
 st103:
@@ -1147,7 +1149,7 @@ st103:
 case 103:
 	switch( (*( state.p)) ) {
 		case 10: goto st10;
-		case 66: goto st104;
+		case 79: goto st104;
 	}
 	goto st9;
 st104:
@@ -1156,7 +1158,7 @@ st104:
 case 104:
 	switch( (*( state.p)) ) {
 		case 10: goto st10;
-		case 79: goto st105;
+		case 88: goto st105;
 	}
 	goto st9;
 st105:
@@ -1164,8 +1166,10 @@ st105:
 		goto _test_eof105;
 case 105:
 	switch( (*( state.p)) ) {
-		case 10: goto st10;
-		case 88: goto st106;
+		case 9: goto st106;
+		case 10: goto st107;
+		case 13: goto st106;
+		case 32: goto st106;
 	}
 	goto st9;
 st106:
@@ -1173,60 +1177,49 @@ st106:
 		goto _test_eof106;
 case 106:
 	switch( (*( state.p)) ) {
-		case 9: goto st107;
-		case 10: goto st108;
-		case 13: goto st107;
-		case 32: goto st107;
+		case 9: goto st106;
+		case 10: goto st107;
+		case 13: goto st106;
+		case 32: goto st106;
 	}
+	if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
+		goto tr121;
 	goto st9;
 st107:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof107;
 case 107:
 	switch( (*( state.p)) ) {
-		case 9: goto st107;
-		case 10: goto st108;
-		case 13: goto st107;
-		case 32: goto st107;
+		case 13: goto st108;
+		case 32: goto st108;
+		case 67: goto st11;
+		case 68: goto st86;
+		case 70: goto st91;
+		case 77: goto st118;
+		case 83: goto st126;
+		case 86: goto st159;
 	}
-	if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-		goto tr122;
-	goto st9;
+	if ( (*( state.p)) > 10 ) {
+		if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
+			goto tr123;
+	} else if ( (*( state.p)) >= 9 )
+		goto st108;
+	goto st0;
 st108:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof108;
 case 108:
 	switch( (*( state.p)) ) {
-		case 13: goto st109;
-		case 32: goto st109;
-		case 67: goto st11;
-		case 68: goto st87;
-		case 70: goto st92;
-		case 77: goto st119;
-		case 83: goto st127;
-		case 86: goto st160;
+		case 13: goto st108;
+		case 32: goto st108;
 	}
 	if ( (*( state.p)) > 10 ) {
 		if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-			goto tr124;
+			goto tr123;
 	} else if ( (*( state.p)) >= 9 )
-		goto st109;
+		goto st108;
 	goto st0;
-st109:
-	if ( ++( state.p) == ( state.pe) )
-		goto _test_eof109;
-case 109:
-	switch( (*( state.p)) ) {
-		case 13: goto st109;
-		case 32: goto st109;
-	}
-	if ( (*( state.p)) > 10 ) {
-		if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-			goto tr124;
-	} else if ( (*( state.p)) >= 9 )
-		goto st109;
-	goto st0;
-tr124:
+tr123:
 #line 104 "bdf.rl"
 	{
             state.match.clear();
@@ -1235,48 +1228,48 @@ tr124:
 	{
             state.match += (*( state.p));
         }
-	goto st110;
-tr126:
+	goto st109;
+tr125:
 #line 108 "bdf.rl"
 	{
             state.match += (*( state.p));
         }
+	goto st109;
+st109:
+	if ( ++( state.p) == ( state.pe) )
+		goto _test_eof109;
+case 109:
+#line 1243 "bdf.h"
+	switch( (*( state.p)) ) {
+		case 13: goto tr124;
+		case 32: goto tr124;
+	}
+	if ( (*( state.p)) > 10 ) {
+		if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
+			goto tr125;
+	} else if ( (*( state.p)) >= 9 )
+		goto tr124;
+	goto st0;
+tr124:
+#line 172 "bdf.rl"
+	{ out.w = toint(state.match); }
 	goto st110;
 st110:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof110;
 case 110:
-#line 1250 "bdf.h"
+#line 1262 "bdf.h"
 	switch( (*( state.p)) ) {
-		case 13: goto tr125;
-		case 32: goto tr125;
+		case 13: goto st110;
+		case 32: goto st110;
 	}
 	if ( (*( state.p)) > 10 ) {
 		if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-			goto tr126;
+			goto tr127;
 	} else if ( (*( state.p)) >= 9 )
-		goto tr125;
+		goto st110;
 	goto st0;
-tr125:
-#line 171 "bdf.rl"
-	{ out.w = toint(state.match); }
-	goto st111;
-st111:
-	if ( ++( state.p) == ( state.pe) )
-		goto _test_eof111;
-case 111:
-#line 1269 "bdf.h"
-	switch( (*( state.p)) ) {
-		case 13: goto st111;
-		case 32: goto st111;
-	}
-	if ( (*( state.p)) > 10 ) {
-		if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-			goto tr128;
-	} else if ( (*( state.p)) >= 9 )
-		goto st111;
-	goto st0;
-tr128:
+tr127:
 #line 104 "bdf.rl"
 	{
             state.match.clear();
@@ -1285,47 +1278,65 @@ tr128:
 	{
             state.match += (*( state.p));
         }
-	goto st112;
-tr130:
+	goto st111;
+tr129:
 #line 108 "bdf.rl"
 	{
             state.match += (*( state.p));
         }
+	goto st111;
+st111:
+	if ( ++( state.p) == ( state.pe) )
+		goto _test_eof111;
+case 111:
+#line 1293 "bdf.h"
+	switch( (*( state.p)) ) {
+		case 13: goto tr128;
+		case 32: goto tr128;
+	}
+	if ( (*( state.p)) > 10 ) {
+		if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
+			goto tr129;
+	} else if ( (*( state.p)) >= 9 )
+		goto tr128;
+	goto st0;
+tr128:
+#line 173 "bdf.rl"
+	{ out.h = toint(state.match); }
 	goto st112;
 st112:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof112;
 case 112:
-#line 1300 "bdf.h"
+#line 1312 "bdf.h"
 	switch( (*( state.p)) ) {
-		case 13: goto tr129;
-		case 32: goto tr129;
+		case 13: goto st112;
+		case 32: goto st112;
+		case 45: goto tr131;
 	}
 	if ( (*( state.p)) > 10 ) {
 		if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-			goto tr130;
+			goto tr132;
 	} else if ( (*( state.p)) >= 9 )
-		goto tr129;
+		goto st112;
 	goto st0;
-tr129:
-#line 172 "bdf.rl"
-	{ out.h = toint(state.match); }
+tr131:
+#line 104 "bdf.rl"
+	{
+            state.match.clear();
+        }
+#line 108 "bdf.rl"
+	{
+            state.match += (*( state.p));
+        }
 	goto st113;
 st113:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof113;
 case 113:
-#line 1319 "bdf.h"
-	switch( (*( state.p)) ) {
-		case 13: goto st113;
-		case 32: goto st113;
-		case 45: goto tr132;
-	}
-	if ( (*( state.p)) > 10 ) {
-		if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-			goto tr133;
-	} else if ( (*( state.p)) >= 9 )
-		goto st113;
+#line 1338 "bdf.h"
+	if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
+		goto tr133;
 	goto st0;
 tr132:
 #line 104 "bdf.rl"
@@ -1337,15 +1348,43 @@ tr132:
             state.match += (*( state.p));
         }
 	goto st114;
+tr133:
+#line 108 "bdf.rl"
+	{
+            state.match += (*( state.p));
+        }
+	goto st114;
 st114:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof114;
 case 114:
-#line 1345 "bdf.h"
-	if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-		goto tr134;
+#line 1362 "bdf.h"
+	switch( (*( state.p)) ) {
+		case 13: goto st115;
+		case 32: goto st115;
+	}
+	if ( (*( state.p)) > 10 ) {
+		if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
+			goto tr133;
+	} else if ( (*( state.p)) >= 9 )
+		goto st115;
 	goto st0;
-tr133:
+st115:
+	if ( ++( state.p) == ( state.pe) )
+		goto _test_eof115;
+case 115:
+	switch( (*( state.p)) ) {
+		case 13: goto st115;
+		case 32: goto st115;
+		case 45: goto tr135;
+	}
+	if ( (*( state.p)) > 10 ) {
+		if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
+			goto tr136;
+	} else if ( (*( state.p)) >= 9 )
+		goto st115;
+	goto st0;
+tr135:
 #line 104 "bdf.rl"
 	{
             state.match.clear();
@@ -1354,42 +1393,14 @@ tr133:
 	{
             state.match += (*( state.p));
         }
-	goto st115;
-tr134:
-#line 108 "bdf.rl"
-	{
-            state.match += (*( state.p));
-        }
-	goto st115;
-st115:
-	if ( ++( state.p) == ( state.pe) )
-		goto _test_eof115;
-case 115:
-#line 1369 "bdf.h"
-	switch( (*( state.p)) ) {
-		case 13: goto st116;
-		case 32: goto st116;
-	}
-	if ( (*( state.p)) > 10 ) {
-		if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-			goto tr134;
-	} else if ( (*( state.p)) >= 9 )
-		goto st116;
-	goto st0;
+	goto st116;
 st116:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof116;
 case 116:
-	switch( (*( state.p)) ) {
-		case 13: goto st116;
-		case 32: goto st116;
-		case 45: goto tr136;
-	}
-	if ( (*( state.p)) > 10 ) {
-		if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-			goto tr137;
-	} else if ( (*( state.p)) >= 9 )
-		goto st116;
+#line 1402 "bdf.h"
+	if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
+		goto tr137;
 	goto st0;
 tr136:
 #line 104 "bdf.rl"
@@ -1401,73 +1412,62 @@ tr136:
             state.match += (*( state.p));
         }
 	goto st117;
+tr137:
+#line 108 "bdf.rl"
+	{
+            state.match += (*( state.p));
+        }
+	goto st117;
 st117:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof117;
 case 117:
-#line 1409 "bdf.h"
+#line 1426 "bdf.h"
+	if ( (*( state.p)) == 10 )
+		goto st10;
 	if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-		goto tr138;
+		goto tr137;
 	goto st0;
-tr137:
-#line 104 "bdf.rl"
-	{
-            state.match.clear();
-        }
-#line 108 "bdf.rl"
-	{
-            state.match += (*( state.p));
-        }
-	goto st118;
-tr138:
-#line 108 "bdf.rl"
-	{
-            state.match += (*( state.p));
-        }
-	goto st118;
 st118:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof118;
 case 118:
-#line 1433 "bdf.h"
-	if ( (*( state.p)) == 10 )
-		goto st10;
-	if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-		goto tr138;
+	if ( (*( state.p)) == 69 )
+		goto st119;
 	goto st0;
 st119:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof119;
 case 119:
-	if ( (*( state.p)) == 69 )
+	if ( (*( state.p)) == 84 )
 		goto st120;
 	goto st0;
 st120:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof120;
 case 120:
-	if ( (*( state.p)) == 84 )
+	if ( (*( state.p)) == 82 )
 		goto st121;
 	goto st0;
 st121:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof121;
 case 121:
-	if ( (*( state.p)) == 82 )
+	if ( (*( state.p)) == 73 )
 		goto st122;
 	goto st0;
 st122:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof122;
 case 122:
-	if ( (*( state.p)) == 73 )
+	if ( (*( state.p)) == 67 )
 		goto st123;
 	goto st0;
 st123:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof123;
 case 123:
-	if ( (*( state.p)) == 67 )
+	if ( (*( state.p)) == 83 )
 		goto st124;
 	goto st0;
 st124:
@@ -1481,319 +1481,312 @@ st125:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof125;
 case 125:
-	if ( (*( state.p)) == 83 )
-		goto st126;
+	if ( (*( state.p)) == 69 )
+		goto st7;
 	goto st0;
 st126:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof126;
 case 126:
-	if ( (*( state.p)) == 69 )
-		goto st7;
+	switch( (*( state.p)) ) {
+		case 73: goto st127;
+		case 84: goto st129;
+		case 87: goto st87;
+	}
 	goto st0;
 st127:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof127;
 case 127:
-	switch( (*( state.p)) ) {
-		case 73: goto st128;
-		case 84: goto st130;
-		case 87: goto st88;
-	}
+	if ( (*( state.p)) == 90 )
+		goto st128;
 	goto st0;
 st128:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof128;
 case 128:
-	if ( (*( state.p)) == 90 )
-		goto st129;
+	if ( (*( state.p)) == 69 )
+		goto st8;
 	goto st0;
 st129:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof129;
 case 129:
-	if ( (*( state.p)) == 69 )
-		goto st8;
+	if ( (*( state.p)) == 65 )
+		goto st130;
 	goto st0;
 st130:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof130;
 case 130:
-	if ( (*( state.p)) == 65 )
+	if ( (*( state.p)) == 82 )
 		goto st131;
 	goto st0;
 st131:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof131;
 case 131:
-	if ( (*( state.p)) == 82 )
+	if ( (*( state.p)) == 84 )
 		goto st132;
 	goto st0;
 st132:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof132;
 case 132:
-	if ( (*( state.p)) == 84 )
-		goto st133;
+	switch( (*( state.p)) ) {
+		case 70: goto st133;
+		case 80: goto st134;
+	}
 	goto st0;
 st133:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof133;
 case 133:
-	switch( (*( state.p)) ) {
-		case 70: goto st134;
-		case 80: goto st135;
-	}
+	if ( (*( state.p)) == 79 )
+		goto st6;
 	goto st0;
 st134:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof134;
 case 134:
-	if ( (*( state.p)) == 79 )
-		goto st6;
+	if ( (*( state.p)) == 82 )
+		goto st135;
 	goto st0;
 st135:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof135;
 case 135:
-	if ( (*( state.p)) == 82 )
+	if ( (*( state.p)) == 79 )
 		goto st136;
 	goto st0;
 st136:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof136;
 case 136:
-	if ( (*( state.p)) == 79 )
+	if ( (*( state.p)) == 80 )
 		goto st137;
 	goto st0;
 st137:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof137;
 case 137:
-	if ( (*( state.p)) == 80 )
+	if ( (*( state.p)) == 69 )
 		goto st138;
 	goto st0;
 st138:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof138;
 case 138:
-	if ( (*( state.p)) == 69 )
+	if ( (*( state.p)) == 82 )
 		goto st139;
 	goto st0;
 st139:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof139;
 case 139:
-	if ( (*( state.p)) == 82 )
+	if ( (*( state.p)) == 84 )
 		goto st140;
 	goto st0;
 st140:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof140;
 case 140:
-	if ( (*( state.p)) == 84 )
+	if ( (*( state.p)) == 73 )
 		goto st141;
 	goto st0;
 st141:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof141;
 case 141:
-	if ( (*( state.p)) == 73 )
+	if ( (*( state.p)) == 69 )
 		goto st142;
 	goto st0;
 st142:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof142;
 case 142:
-	if ( (*( state.p)) == 69 )
+	if ( (*( state.p)) == 83 )
 		goto st143;
 	goto st0;
 st143:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof143;
 case 143:
-	if ( (*( state.p)) == 83 )
-		goto st144;
-	goto st0;
+	if ( (*( state.p)) == 10 )
+		goto st0;
+	goto st144;
 st144:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof144;
 case 144:
 	if ( (*( state.p)) == 10 )
-		goto st0;
-	goto st145;
+		goto st145;
+	goto st144;
 st145:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof145;
 case 145:
-	if ( (*( state.p)) == 10 )
+	if ( (*( state.p)) == 69 )
 		goto st146;
 	goto st145;
 st146:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof146;
 case 146:
-	if ( (*( state.p)) == 69 )
-		goto st147;
-	goto st146;
+	switch( (*( state.p)) ) {
+		case 69: goto st146;
+		case 78: goto st147;
+	}
+	goto st145;
 st147:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof147;
 case 147:
 	switch( (*( state.p)) ) {
-		case 69: goto st147;
-		case 78: goto st148;
+		case 68: goto st148;
+		case 69: goto st146;
 	}
-	goto st146;
+	goto st145;
 st148:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof148;
 case 148:
 	switch( (*( state.p)) ) {
-		case 68: goto st149;
-		case 69: goto st147;
+		case 69: goto st146;
+		case 80: goto st149;
 	}
-	goto st146;
+	goto st145;
 st149:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof149;
 case 149:
 	switch( (*( state.p)) ) {
-		case 69: goto st147;
-		case 80: goto st150;
+		case 69: goto st146;
+		case 82: goto st150;
 	}
-	goto st146;
+	goto st145;
 st150:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof150;
 case 150:
 	switch( (*( state.p)) ) {
-		case 69: goto st147;
-		case 82: goto st151;
+		case 69: goto st146;
+		case 79: goto st151;
 	}
-	goto st146;
+	goto st145;
 st151:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof151;
 case 151:
 	switch( (*( state.p)) ) {
-		case 69: goto st147;
-		case 79: goto st152;
+		case 69: goto st146;
+		case 80: goto st152;
 	}
-	goto st146;
+	goto st145;
 st152:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof152;
 case 152:
-	switch( (*( state.p)) ) {
-		case 69: goto st147;
-		case 80: goto st153;
-	}
-	goto st146;
+	if ( (*( state.p)) == 69 )
+		goto st153;
+	goto st145;
 st153:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof153;
 case 153:
-	if ( (*( state.p)) == 69 )
-		goto st154;
-	goto st146;
+	switch( (*( state.p)) ) {
+		case 69: goto st146;
+		case 78: goto st147;
+		case 82: goto st154;
+	}
+	goto st145;
 st154:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof154;
 case 154:
 	switch( (*( state.p)) ) {
-		case 69: goto st147;
-		case 78: goto st148;
-		case 82: goto st155;
+		case 69: goto st146;
+		case 84: goto st155;
 	}
-	goto st146;
+	goto st145;
 st155:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof155;
 case 155:
 	switch( (*( state.p)) ) {
-		case 69: goto st147;
-		case 84: goto st156;
+		case 69: goto st146;
+		case 73: goto st156;
 	}
-	goto st146;
+	goto st145;
 st156:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof156;
 case 156:
-	switch( (*( state.p)) ) {
-		case 69: goto st147;
-		case 73: goto st157;
-	}
-	goto st146;
+	if ( (*( state.p)) == 69 )
+		goto st157;
+	goto st145;
 st157:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof157;
 case 157:
-	if ( (*( state.p)) == 69 )
-		goto st158;
-	goto st146;
+	switch( (*( state.p)) ) {
+		case 69: goto st146;
+		case 78: goto st147;
+		case 83: goto st158;
+	}
+	goto st145;
 st158:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof158;
 case 158:
 	switch( (*( state.p)) ) {
-		case 69: goto st147;
-		case 78: goto st148;
-		case 83: goto st159;
+		case 10: goto st10;
+		case 69: goto st146;
 	}
-	goto st146;
+	goto st145;
 st159:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof159;
 case 159:
-	switch( (*( state.p)) ) {
-		case 10: goto st10;
-		case 69: goto st147;
-	}
-	goto st146;
+	if ( (*( state.p)) == 86 )
+		goto st160;
+	goto st0;
 st160:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof160;
 case 160:
-	if ( (*( state.p)) == 86 )
+	if ( (*( state.p)) == 69 )
 		goto st161;
 	goto st0;
 st161:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof161;
 case 161:
-	if ( (*( state.p)) == 69 )
+	if ( (*( state.p)) == 67 )
 		goto st162;
 	goto st0;
 st162:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof162;
 case 162:
-	if ( (*( state.p)) == 67 )
+	if ( (*( state.p)) == 84 )
 		goto st163;
 	goto st0;
 st163:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof163;
 case 163:
-	if ( (*( state.p)) == 84 )
+	if ( (*( state.p)) == 79 )
 		goto st164;
 	goto st0;
 st164:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof164;
 case 164:
-	if ( (*( state.p)) == 79 )
-		goto st165;
-	goto st0;
-st165:
-	if ( ++( state.p) == ( state.pe) )
-		goto _test_eof165;
-case 165:
 	if ( (*( state.p)) == 82 )
 		goto st8;
 	goto st0;
-tr122:
+tr121:
 #line 104 "bdf.rl"
 	{
             state.match.clear();
@@ -1802,71 +1795,71 @@ tr122:
 	{
             state.match += (*( state.p));
         }
-	goto st166;
-tr185:
+	goto st165;
+tr184:
 #line 108 "bdf.rl"
 	{
             state.match += (*( state.p));
         }
+	goto st165;
+st165:
+	if ( ++( state.p) == ( state.pe) )
+		goto _test_eof165;
+case 165:
+#line 1810 "bdf.h"
+	switch( (*( state.p)) ) {
+		case 9: goto tr182;
+		case 10: goto tr183;
+		case 13: goto tr182;
+		case 32: goto tr182;
+	}
+	if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
+		goto tr184;
+	goto st9;
+tr182:
+#line 172 "bdf.rl"
+	{ out.w = toint(state.match); }
 	goto st166;
 st166:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof166;
 case 166:
-#line 1817 "bdf.h"
+#line 1828 "bdf.h"
 	switch( (*( state.p)) ) {
-		case 9: goto tr183;
-		case 10: goto tr184;
-		case 13: goto tr183;
-		case 32: goto tr183;
+		case 9: goto st166;
+		case 10: goto st167;
+		case 13: goto st166;
+		case 32: goto st166;
 	}
 	if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-		goto tr185;
+		goto tr187;
 	goto st9;
 tr183:
-#line 171 "bdf.rl"
+#line 172 "bdf.rl"
 	{ out.w = toint(state.match); }
 	goto st167;
 st167:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof167;
 case 167:
-#line 1835 "bdf.h"
+#line 1846 "bdf.h"
 	switch( (*( state.p)) ) {
-		case 9: goto st167;
-		case 10: goto st168;
-		case 13: goto st167;
-		case 32: goto st167;
-	}
-	if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-		goto tr188;
-	goto st9;
-tr184:
-#line 171 "bdf.rl"
-	{ out.w = toint(state.match); }
-	goto st168;
-st168:
-	if ( ++( state.p) == ( state.pe) )
-		goto _test_eof168;
-case 168:
-#line 1853 "bdf.h"
-	switch( (*( state.p)) ) {
-		case 13: goto st111;
-		case 32: goto st111;
+		case 13: goto st110;
+		case 32: goto st110;
 		case 67: goto st11;
-		case 68: goto st87;
-		case 70: goto st92;
-		case 77: goto st119;
-		case 83: goto st127;
-		case 86: goto st160;
+		case 68: goto st86;
+		case 70: goto st91;
+		case 77: goto st118;
+		case 83: goto st126;
+		case 86: goto st159;
 	}
 	if ( (*( state.p)) > 10 ) {
 		if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-			goto tr128;
+			goto tr127;
 	} else if ( (*( state.p)) >= 9 )
-		goto st111;
+		goto st110;
 	goto st0;
-tr188:
+tr187:
 #line 104 "bdf.rl"
 	{
             state.match.clear();
@@ -1875,72 +1868,92 @@ tr188:
 	{
             state.match += (*( state.p));
         }
-	goto st169;
-tr191:
+	goto st168;
+tr190:
 #line 108 "bdf.rl"
 	{
             state.match += (*( state.p));
         }
+	goto st168;
+st168:
+	if ( ++( state.p) == ( state.pe) )
+		goto _test_eof168;
+case 168:
+#line 1883 "bdf.h"
+	switch( (*( state.p)) ) {
+		case 9: goto tr188;
+		case 10: goto tr189;
+		case 13: goto tr188;
+		case 32: goto tr188;
+	}
+	if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
+		goto tr190;
+	goto st9;
+tr188:
+#line 173 "bdf.rl"
+	{ out.h = toint(state.match); }
 	goto st169;
 st169:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof169;
 case 169:
-#line 1890 "bdf.h"
+#line 1901 "bdf.h"
 	switch( (*( state.p)) ) {
-		case 9: goto tr189;
-		case 10: goto tr190;
-		case 13: goto tr189;
-		case 32: goto tr189;
+		case 9: goto st169;
+		case 10: goto st170;
+		case 13: goto st169;
+		case 32: goto st169;
+		case 45: goto tr193;
 	}
 	if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-		goto tr191;
+		goto tr194;
 	goto st9;
 tr189:
-#line 172 "bdf.rl"
+#line 173 "bdf.rl"
 	{ out.h = toint(state.match); }
 	goto st170;
 st170:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof170;
 case 170:
-#line 1908 "bdf.h"
+#line 1920 "bdf.h"
 	switch( (*( state.p)) ) {
-		case 9: goto st170;
-		case 10: goto st171;
-		case 13: goto st170;
-		case 32: goto st170;
-		case 45: goto tr194;
+		case 13: goto st112;
+		case 32: goto st112;
+		case 45: goto tr131;
+		case 67: goto st11;
+		case 68: goto st86;
+		case 70: goto st91;
+		case 77: goto st118;
+		case 83: goto st126;
+		case 86: goto st159;
 	}
-	if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-		goto tr195;
-	goto st9;
-tr190:
-#line 172 "bdf.rl"
-	{ out.h = toint(state.match); }
+	if ( (*( state.p)) > 10 ) {
+		if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
+			goto tr132;
+	} else if ( (*( state.p)) >= 9 )
+		goto st112;
+	goto st0;
+tr193:
+#line 104 "bdf.rl"
+	{
+            state.match.clear();
+        }
+#line 108 "bdf.rl"
+	{
+            state.match += (*( state.p));
+        }
 	goto st171;
 st171:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof171;
 case 171:
-#line 1927 "bdf.h"
-	switch( (*( state.p)) ) {
-		case 13: goto st113;
-		case 32: goto st113;
-		case 45: goto tr132;
-		case 67: goto st11;
-		case 68: goto st87;
-		case 70: goto st92;
-		case 77: goto st119;
-		case 83: goto st127;
-		case 86: goto st160;
-	}
-	if ( (*( state.p)) > 10 ) {
-		if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-			goto tr133;
-	} else if ( (*( state.p)) >= 9 )
-		goto st113;
-	goto st0;
+#line 1952 "bdf.h"
+	if ( (*( state.p)) == 10 )
+		goto st10;
+	if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
+		goto tr195;
+	goto st9;
 tr194:
 #line 104 "bdf.rl"
 	{
@@ -1951,82 +1964,62 @@ tr194:
             state.match += (*( state.p));
         }
 	goto st172;
+tr195:
+#line 108 "bdf.rl"
+	{
+            state.match += (*( state.p));
+        }
+	goto st172;
 st172:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof172;
 case 172:
-#line 1959 "bdf.h"
-	if ( (*( state.p)) == 10 )
-		goto st10;
+#line 1978 "bdf.h"
+	switch( (*( state.p)) ) {
+		case 9: goto st173;
+		case 10: goto st174;
+		case 13: goto st173;
+		case 32: goto st173;
+	}
 	if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-		goto tr196;
+		goto tr195;
 	goto st9;
-tr195:
-#line 104 "bdf.rl"
-	{
-            state.match.clear();
-        }
-#line 108 "bdf.rl"
-	{
-            state.match += (*( state.p));
-        }
-	goto st173;
-tr196:
-#line 108 "bdf.rl"
-	{
-            state.match += (*( state.p));
-        }
-	goto st173;
 st173:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof173;
 case 173:
-#line 1985 "bdf.h"
 	switch( (*( state.p)) ) {
-		case 9: goto st174;
-		case 10: goto st175;
-		case 13: goto st174;
-		case 32: goto st174;
+		case 9: goto st173;
+		case 10: goto st174;
+		case 13: goto st173;
+		case 32: goto st173;
+		case 45: goto tr198;
 	}
 	if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-		goto tr196;
+		goto tr198;
 	goto st9;
 st174:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof174;
 case 174:
 	switch( (*( state.p)) ) {
-		case 9: goto st174;
-		case 10: goto st175;
-		case 13: goto st174;
-		case 32: goto st174;
-		case 45: goto tr199;
-	}
-	if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-		goto tr199;
-	goto st9;
-st175:
-	if ( ++( state.p) == ( state.pe) )
-		goto _test_eof175;
-case 175:
-	switch( (*( state.p)) ) {
-		case 13: goto st116;
-		case 32: goto st116;
-		case 45: goto tr136;
+		case 13: goto st115;
+		case 32: goto st115;
+		case 45: goto tr135;
 		case 67: goto st11;
-		case 68: goto st87;
-		case 70: goto st92;
-		case 77: goto st119;
-		case 83: goto st127;
-		case 86: goto st160;
+		case 68: goto st86;
+		case 70: goto st91;
+		case 77: goto st118;
+		case 83: goto st126;
+		case 86: goto st159;
 	}
 	if ( (*( state.p)) > 10 ) {
 		if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-			goto tr137;
+			goto tr136;
 	} else if ( (*( state.p)) >= 9 )
-		goto st116;
+		goto st115;
 	goto st0;
-tr199:
+tr198:
 #line 104 "bdf.rl"
 	{
             state.match.clear();
@@ -2035,97 +2028,97 @@ tr199:
 	{
             state.match += (*( state.p));
         }
-	goto st176;
-tr200:
+	goto st175;
+tr199:
 #line 108 "bdf.rl"
 	{
             state.match += (*( state.p));
         }
-	goto st176;
+	goto st175;
+st175:
+	if ( ++( state.p) == ( state.pe) )
+		goto _test_eof175;
+case 175:
+#line 2043 "bdf.h"
+	if ( (*( state.p)) == 10 )
+		goto st10;
+	if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
+		goto tr199;
+	goto st9;
 st176:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof176;
 case 176:
-#line 2050 "bdf.h"
-	if ( (*( state.p)) == 10 )
-		goto st10;
-	if ( 48 <= (*( state.p)) && (*( state.p)) <= 57 )
-		goto tr200;
-	goto st9;
+	if ( (*( state.p)) == 84 )
+		goto st177;
+	goto st0;
 st177:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof177;
 case 177:
-	if ( (*( state.p)) == 84 )
+	if ( (*( state.p)) == 69 )
 		goto st178;
 	goto st0;
 st178:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof178;
 case 178:
-	if ( (*( state.p)) == 69 )
+	if ( (*( state.p)) == 78 )
 		goto st179;
 	goto st0;
 st179:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof179;
 case 179:
-	if ( (*( state.p)) == 78 )
+	if ( (*( state.p)) == 84 )
 		goto st180;
 	goto st0;
 st180:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof180;
 case 180:
-	if ( (*( state.p)) == 84 )
+	if ( (*( state.p)) == 86 )
 		goto st181;
 	goto st0;
 st181:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof181;
 case 181:
-	if ( (*( state.p)) == 86 )
+	if ( (*( state.p)) == 69 )
 		goto st182;
 	goto st0;
 st182:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof182;
 case 182:
-	if ( (*( state.p)) == 69 )
+	if ( (*( state.p)) == 82 )
 		goto st183;
 	goto st0;
 st183:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof183;
 case 183:
-	if ( (*( state.p)) == 82 )
+	if ( (*( state.p)) == 83 )
 		goto st184;
 	goto st0;
 st184:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof184;
 case 184:
-	if ( (*( state.p)) == 83 )
+	if ( (*( state.p)) == 73 )
 		goto st185;
 	goto st0;
 st185:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof185;
 case 185:
-	if ( (*( state.p)) == 73 )
+	if ( (*( state.p)) == 79 )
 		goto st186;
 	goto st0;
 st186:
 	if ( ++( state.p) == ( state.pe) )
 		goto _test_eof186;
 case 186:
-	if ( (*( state.p)) == 79 )
-		goto st187;
-	goto st0;
-st187:
-	if ( ++( state.p) == ( state.pe) )
-		goto _test_eof187;
-case 187:
 	if ( (*( state.p)) == 78 )
 		goto st8;
 	goto st0;
@@ -2194,8 +2187,8 @@ case 187:
 	_test_eof63:  state.cs = 63; goto _test_eof; 
 	_test_eof64:  state.cs = 64; goto _test_eof; 
 	_test_eof65:  state.cs = 65; goto _test_eof; 
+	_test_eof187:  state.cs = 187; goto _test_eof; 
 	_test_eof66:  state.cs = 66; goto _test_eof; 
-	_test_eof188:  state.cs = 188; goto _test_eof; 
 	_test_eof67:  state.cs = 67; goto _test_eof; 
 	_test_eof68:  state.cs = 68; goto _test_eof; 
 	_test_eof69:  state.cs = 69; goto _test_eof; 
@@ -2316,13 +2309,12 @@ case 187:
 	_test_eof184:  state.cs = 184; goto _test_eof; 
 	_test_eof185:  state.cs = 185; goto _test_eof; 
 	_test_eof186:  state.cs = 186; goto _test_eof; 
-	_test_eof187:  state.cs = 187; goto _test_eof; 
 
 	_test_eof: {}
 	_out: {}
 	}
 
-#line 228 "bdf.rl"
+#line 229 "bdf.rl"
 
         // Avoid spurious gcc warnings.
         (void)BDFParser_first_final;
