@@ -9,9 +9,10 @@
 #include "SDL2/SDL.h"
 #include "SDL2/SDL_image.h"
 #include "SDL2/SDL_net.h"
-#include "SDL2/SDL_ttf.h"
 
 #include "libtsm/src/libtsm.h"
+
+#include "bdf.h"
 
 #include <sys/time.h>
 
@@ -31,14 +32,14 @@ struct bm {
 };
 
 
-
 struct Screen {
 
     SDL_Surface* tiles;
     SDL_Window* window;
     SDL_Renderer* renderer;
     SDL_Surface* screen;
-    TTF_Font* font;
+
+    bdf::Font font_a;
 
     unsigned int tw;
     unsigned int th;
@@ -51,21 +52,11 @@ struct Screen {
 
     bool done;
 
-    struct glyph_t {
-        SDL_Surface* bitmap;
-        size_t w;
-        size_t h;
-
-        glyph_t() : bitmap(NULL), w(0), h(0) {}
-    };
-
-    std::unordered_map<uint32_t, glyph_t> glyphs;
-
 
     Screen(unsigned int tilew, unsigned int tileh, 
            const std::string& fontfile, 
            unsigned int screenw, unsigned int screenh) : 
-        tiles(NULL), window(NULL), renderer(NULL), screen(NULL), font(NULL),
+        tiles(NULL), window(NULL), renderer(NULL), screen(NULL), 
         tw(tilew), th(tileh), 
         sw(screenw), sh(screenh), 
         done(false)
@@ -112,21 +103,15 @@ struct Screen {
             tiles_png_w = tiles->w / tw;
             tiles_png_h = tiles->h / th;
 
-            if (TTF_Init() < 0)
-                throw std::runtime_error("Could not init TTF");
+            bdf::parse_bdf(fontfile, font_a);
 
-            font = TTF_OpenFont(fontfile.c_str(), th);
-
-            if (font == NULL)
-                throw std::runtime_error("Could not open font: " + fontfile);
+            if (font_a.h != th)
+                throw std::runtime_error("Font size does not match tile size");
 
         } catch(...) {
 
             if (tiles != NULL)
                 SDL_FreeSurface(tiles);
-
-            if (font != NULL)
-                TTF_CloseFont(font);
 
             if (renderer != NULL)
                 SDL_DestroyRenderer(renderer);
@@ -134,7 +119,6 @@ struct Screen {
             if (window != NULL)
                 SDL_DestroyWindow(window);
 
-            TTF_Quit();
             SDL_Quit();
             throw;
         }
@@ -142,15 +126,9 @@ struct Screen {
 
     ~Screen() {
 
-        for (auto& g : glyphs) {
-            SDL_FreeSurface(g.second.bitmap);
-        }
-
-        TTF_CloseFont(font);
         SDL_FreeSurface(tiles);
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
-        TTF_Quit();
         SDL_Quit();
     }
 
@@ -175,22 +153,6 @@ struct Screen {
         from.y *= th;
 #endif
 
-        glyph_t& g = glyphs[ti];
-
-        if (g.bitmap == NULL) {
-            SDL_Color fgc = { 0xFF, 0xFF, 0xFF };
-            g.bitmap = TTF_RenderGlyph_Solid(font, ti, fgc);
-
-            if (g.bitmap == NULL)
-                throw std::runtime_error("Could not render glyph");
-
-            g.w = g.bitmap->w;
-            g.h = g.bitmap->h;
-
-            std::cout << "[[[ " << SDL_GetPixelFormatName(g.bitmap->format->format) << " " << g.bitmap->pitch << " : " 
-                      << g.bitmap->w << " " << g.bitmap->h << std::endl;
-        }
-
         SDL_Rect to;
         to.x = x * tw;
         to.y = y * th;
@@ -200,15 +162,28 @@ struct Screen {
         SDL_SetRenderDrawColor(renderer, br, bg, bb, 0xFF);
         SDL_RenderFillRect(renderer, &to);
 
+        auto gi = font_a.glyphs.find(ti);
+
+        if (gi == font_a.glyphs.end())
+            return;
+
+        const auto& glyph = gi->second;
+
         SDL_SetRenderDrawColor(renderer, fr, fg, fb, 0xFF);
 
-        uint8_t* pix;
-        for (int y = 0; y < g.bitmap->h; ++y) {
-            pix = (uint8_t*)g.bitmap->pixels;
-            pix += g.bitmap->pitch*y;
-            for (int x = 0; x < g.bitmap->w; ++x, ++pix) {
-                if (*pix) {
-                    SDL_RenderDrawPoint(renderer, to.x + x, to.y + y);
+        unsigned int xx = 0;
+        unsigned int yy = 0;
+
+        for (uint8_t v : glyph.bitmap) {
+            for (int bit = 7; bit >= 0; --bit) {
+                if (v & (1 << bit)) 
+                    SDL_RenderDrawPoint(renderer, to.x + xx, to.y + yy);
+
+                ++xx;
+                if (xx >= glyph.w) {
+                    xx = 0;
+                    ++yy;
+                    break;
                 }
             }
         }
@@ -242,7 +217,11 @@ struct Screen {
             break;
 
         case SDL_KEYDOWN:
-            keypress(*this, e.key.keysym);
+            //keypress(*this, e.key.keysym, "");
+            break;
+
+        case SDL_TEXTINPUT:
+            keypress(*this, SDL_Keysym(), e.text.text);
             break;
 
         default:
@@ -316,11 +295,7 @@ struct Socket {
 
     void recv(std::string& out) {
 
-        std::cout << "Recv." << std::endl;
-        
         int i = SDLNet_TCP_Recv(socket, (char*)out.data(), out.size());
-
-        std::cout << "Recv ok." << std::endl;
 
         if (i < 0)
             throw std::runtime_error("Error receiving data");
@@ -330,11 +305,7 @@ struct Socket {
 
     void send(const std::string& in) {
 
-        std::cout << "Send." << std::endl;
-
         int i = SDLNet_TCP_Send(socket, (char*)in.data(), in.size());
-
-        std::cout << "Send ok." << std::endl;
 
         if (i != (int)in.size())
             throw std::runtime_error("Error sending data");
@@ -342,11 +313,7 @@ struct Socket {
 
     void send(const char* data, size_t len) {
 
-        std::cout << "Send2." << std::endl;
-
         int i = SDLNet_TCP_Send(socket, data, len);
-
-        std::cout << "Send2 ok." << std::endl;
 
         if (i != (int)len)
             throw std::runtime_error("Error sending data");
@@ -369,8 +336,6 @@ void tsm_term_writer_cb(struct tsm_vte* vte, const char* u8, size_t len, void* d
 
     Socket* socket = (Socket*)data;
 
-    std::cout << "Socket sender!" << std::endl;
-
     socket->send(u8, len);
 }
 
@@ -379,7 +344,6 @@ int tsm_drawer_cb(struct tsm_screen* screen, uint32_t id, const uint32_t* ch, si
                   void* data) {
 
     if (cwidth == 0) {
-        std::cout << "OOPS " << len << std::endl;
         return 0;
     }
 
@@ -453,7 +417,6 @@ struct VTE {
     void redraw() {
 
         bm _r("redraw");
-        std::cout << "screen " << draw.sw << " " << draw.sw << std::endl;
 
         tsm_age_t age = tsm_screen_draw(screen, tsm_drawer_cb, &draw);
     }
@@ -523,15 +486,20 @@ void resizer(Screen& screen, Socket& socket, VTE& vte) {
     vte.resize();
 }
 
-void keypressor(Screen& screen, const SDL_Keysym& k, VTE& vte) {
+void keypressor(Screen& screen, const SDL_Keysym& k, const std::string& text, VTE& vte) {
 
-    std::cout << "| " << (int)k.sym << " " << (int)k.mod << std::endl;
+    if (text.size() > 0) {
+        std::cout << "> " << text << std::endl;
 
-    std::cout << "Handling keyboard." << std::endl;
+        for (char c : text) {
+            tsm_vte_handle_keyboard(vte.vte, c, c, 0, c);
+        }
 
-    tsm_vte_handle_keyboard(vte.vte, k.sym, k.sym, 0, k.sym);
+    } else {
+        std::cout << "| " << (int)k.sym << " " << (int)k.mod << std::endl;
 
-    std::cout << "Handling keyboard ok." << std::endl;
+        tsm_vte_handle_keyboard(vte.vte, k.sym, k.sym, 0, k.sym);
+    }
 }
 
 void multiplexor(Screen& screen, Socket& socket, VTE& vte) {
@@ -684,9 +652,17 @@ int main(int argc, char** argv) {
 
     try {
 
-        Screen screen(6, 12, 
-                      "fireflysung.ttf",
+        Screen screen(8, 16,
+                      argv[3],
+                      //"hannoma.ttf",
+                      //"eduSong_Unicode.ttf",
+                      //"uming.ttc",
+                      //"wqy-microhei.ttc",
+                      //"wqy-zenhei.ttc",
+                      //"odosung.ttc",
+                      //"fireflysung.ttf",
                       //"terminus.ttf",
+                      //"DroidSansFallbackFull.ttf",
                       70, 50);
 
         Socket sock(argv[1], ::atoi(argv[2]));
@@ -695,11 +671,9 @@ int main(int argc, char** argv) {
 
         screen.mainloop(std::bind(multiplexor, std::placeholders::_1, std::ref(sock), std::ref(vte)),
                         std::bind(resizer, std::placeholders::_1, std::ref(sock), std::ref(vte)),
-                        std::bind(keypressor, std::placeholders::_1, std::placeholders::_2, std::ref(vte))
+                        std::bind(keypressor, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, 
+                                  std::ref(vte))
             );
-
-        SDL_Event event;
-        SDL_WaitEvent(&event);
 
     } catch (std::exception& e) {
         std::cout << "Fatal Error: " << e.what() << std::endl;

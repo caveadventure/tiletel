@@ -17,35 +17,44 @@ SET(INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/dist)
 
 include_directories(../libtsm libtsm)
 
-#find_program(RAGEL ragel)
+find_program(RAGEL ragel)
 
-#if(NOT RAGEL) 
+if(NOT RAGEL) 
   
-#  add_executable(incavead configparser.cc incavead.cc)
+  add_executable(tiletel tiletel.cc 
+     libtsm/external/wcwidth.c
+     libtsm/src/tsm_vte_charsets.c
+     libtsm/src/shl_htable.c 
+     libtsm/src/tsm_screen.c
+     libtsm/src/tsm_vte.c
+     libtsm/src/tsm_render.c
+     libtsm/src/tsm_selection.c
+     libtsm/src/tsm_unicode.c
+  )
 
-#else(NOT RAGEL)
+else(NOT RAGEL)
 
-#  add_custom_command(
-#    OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/configparser.h
-#    COMMAND ${RAGEL} -s -T0 -o configparser.h configparser.rl
-#    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/configparser.rl
-#    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-#  )
+  add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/bdf.h
+    COMMAND ${RAGEL} -s -G2 -o bdf.h bdf.rl
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/bdf.rl
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
 
-#  add_executable(incavead configparser.cc incavead.cc ${CMAKE_CURRENT_SOURCE_DIR}/configparser.h)
+  add_executable(tiletel tiletel.cc 
+     libtsm/external/wcwidth.c
+     libtsm/src/tsm_vte_charsets.c
+     libtsm/src/shl_htable.c 
+     libtsm/src/tsm_screen.c
+     libtsm/src/tsm_vte.c
+     libtsm/src/tsm_render.c
+     libtsm/src/tsm_selection.c
+     libtsm/src/tsm_unicode.c
+     ${CMAKE_CURRENT_SOURCE_DIR}/bdf.h
+   )
 
-#endif(NOT RAGEL)
+endif(NOT RAGEL)
 
-add_executable(tiletel tiletel.cc 
-   libtsm/external/wcwidth.c
-   libtsm/src/tsm_vte_charsets.c
-   libtsm/src/shl_htable.c 
-   libtsm/src/tsm_screen.c
-   libtsm/src/tsm_vte.c
-   libtsm/src/tsm_render.c
-   libtsm/src/tsm_selection.c
-   libtsm/src/tsm_unicode.c
-)
 
 if(WIN32)
 
