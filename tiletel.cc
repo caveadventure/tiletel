@@ -11,6 +11,7 @@
 #include "SDL2/SDL_net.h"
 
 #include "libtsm/src/libtsm.h"
+#include "external/xkbcommon-keysyms.h"
 
 #include "bdf.h"
 
@@ -175,6 +176,17 @@ struct Screen {
         unsigned int yy = 0;
 
         for (uint8_t v : glyph.bitmap) {
+
+            if (v == 0) {
+                xx += 8;
+
+                if (xx >= glyph.w) {
+                    xx = 0;
+                    ++yy;
+                }
+                continue;
+            }
+
             for (int bit = 7; bit >= 0; --bit) {
                 if (v & (1 << bit)) 
                     SDL_RenderDrawPoint(renderer, to.x + xx, to.y + yy);
@@ -217,12 +229,15 @@ struct Screen {
             break;
 
         case SDL_KEYDOWN:
-            //keypress(*this, e.key.keysym, "");
+            std::cout << "KEYPRESS: " << e.key.keysym.sym << std::endl;
+            keypress(*this, e.key.keysym);
             break;
 
+            /*
         case SDL_TEXTINPUT:
             keypress(*this, SDL_Keysym(), e.text.text);
             break;
+            */
 
         default:
             break;
@@ -486,20 +501,181 @@ void resizer(Screen& screen, Socket& socket, VTE& vte) {
     vte.resize();
 }
 
-void keypressor(Screen& screen, const SDL_Keysym& k, const std::string& text, VTE& vte) {
+unsigned char doshift(unsigned char c) {
+    static bool init = false;
+    static unsigned char map[128];
 
-    if (text.size() > 0) {
-        std::cout << "> " << text << std::endl;
+    if (c >= 128)
+        return c;
 
-        for (char c : text) {
-            tsm_vte_handle_keyboard(vte.vte, c, c, 0, c);
+    if (!init) {
+        for (unsigned char i = 0; i < 128; ++i) {
+            map[i] = i;
         }
 
-    } else {
-        std::cout << "| " << (int)k.sym << " " << (int)k.mod << std::endl;
+        for (unsigned char i = 'a'; i <= 'z'; ++i) {
+            map[i] = i - 'a' + 'A';
+        }
 
-        tsm_vte_handle_keyboard(vte.vte, k.sym, k.sym, 0, k.sym);
+        map['`'] = '~';
+        map['1'] = '!';
+        map['2'] = '@';
+        map['3'] = '#';
+        map['4'] = '$';
+        map['5'] = '%';
+        map['6'] = '^';
+        map['7'] = '&';
+        map['8'] = '*';
+        map['9'] = '(';
+        map['0'] = ')';
+        map['-'] = '_';
+        map['='] = '+';
+        map['['] = '{';
+        map[']'] = '}';
+        map['\\'] = '|';
+        map[';'] = ':';
+        map['\''] = '"';
+        map[','] = '<';
+        map['.'] = '>';
+        map['/'] = '?';
+
+        init = true;
     }
+
+    return map[c];
+}
+
+
+void keypressor(Screen& screen, const SDL_Keysym& k, VTE& vte) {
+
+    std::cout << "| " << (int)k.sym << " " << (int)k.mod << std::endl;
+    unsigned char key = (k.sym > 127 ? '?' : k.sym);
+
+    if (key == 0)
+        return;
+
+    unsigned int mods = 0;
+
+    if (k.mod & KMOD_SHIFT) {
+        key = doshift(key);
+        mods |= TSM_SHIFT_MASK;
+    }
+
+    if (k.mod & KMOD_ALT) {
+        mods |= TSM_ALT_MASK;
+    }
+
+    if (k.mod & KMOD_CTRL) {
+        mods |= TSM_CONTROL_MASK;
+    }
+
+    uint32_t tsmsym = XKB_KEY_NoSymbol;
+
+    if (k.sym & SDLK_SCANCODE_MASK) {
+        
+        switch (k.sym) {
+        case SDLK_INSERT:
+            tsmsym = XKB_KEY_Insert;
+            break;
+        case SDLK_HOME:
+            tsmsym = XKB_KEY_Home;
+            break;
+        case SDLK_PAGEUP:
+            tsmsym = XKB_KEY_Page_Up;
+            break;
+        case SDLK_END:
+            tsmsym = XKB_KEY_End;
+            break;
+        case SDLK_PAGEDOWN:
+            tsmsym = XKB_KEY_Page_Down;
+            break;
+        case SDLK_RIGHT:
+            tsmsym = XKB_KEY_Right;
+            break;
+        case SDLK_LEFT:
+            tsmsym = XKB_KEY_Left;
+            break;
+        case SDLK_DOWN:
+            tsmsym = XKB_KEY_Down;
+            break;
+        case SDLK_UP:
+            tsmsym = XKB_KEY_Up;
+            break;
+
+/*
+        case XKB_KEY_KP_Enter:
+        case XKB_KEY_KP_Page_Up:
+        case XKB_KEY_KP_Page_Down:
+        case XKB_KEY_KP_Up:
+        case XKB_KEY_KP_Down:
+        case XKB_KEY_KP_Right:
+        case XKB_KEY_KP_Left:
+        case XKB_KEY_KP_Insert:
+        case XKB_KEY_KP_0:
+        case XKB_KEY_KP_1:
+        case XKB_KEY_KP_2:
+        case XKB_KEY_KP_3:
+        case XKB_KEY_KP_4:
+        case XKB_KEY_KP_5:
+        case XKB_KEY_KP_6:
+        case XKB_KEY_KP_7:
+        case XKB_KEY_KP_8:
+        case XKB_KEY_KP_9:
+
+        case XKB_KEY_KP_Subtract:
+        case XKB_KEY_KP_Separator:
+        case XKB_KEY_KP_Delete:
+        case XKB_KEY_KP_Decimal:
+        case XKB_KEY_KP_Equal:
+        case XKB_KEY_KP_Divide:
+        case XKB_KEY_KP_Multiply:
+        case XKB_KEY_KP_Add:
+        case XKB_KEY_KP_Home:
+        case XKB_KEY_KP_End:
+*/
+
+        case SDLK_F1:
+            tsmsym = XKB_KEY_F1;
+            break;
+        case SDLK_F2:
+            tsmsym = XKB_KEY_F2;
+            break;
+        case SDLK_F3:
+            tsmsym = XKB_KEY_F3;
+            break;
+        case SDLK_F4:
+            tsmsym = XKB_KEY_F4;
+            break;
+        case SDLK_F5:
+            tsmsym = XKB_KEY_F5;
+            break;
+        case SDLK_F6:
+            tsmsym = XKB_KEY_F6;
+            break;
+        case SDLK_F7:
+            tsmsym = XKB_KEY_F7;
+            break;
+        case SDLK_F8:
+            tsmsym = XKB_KEY_F8;
+            break;
+        case SDLK_F9:
+            tsmsym = XKB_KEY_F9;
+            break;
+        case SDLK_F10:
+            tsmsym = XKB_KEY_F10;
+            break;
+        case SDLK_F11:
+            tsmsym = XKB_KEY_F11;
+            break;
+        case SDLK_F12:
+            tsmsym = XKB_KEY_F12;
+            break;
+        default:
+            return;
+        }
+    }
+
+    tsm_vte_handle_keyboard(vte.vte, tsmsym, key, mods, key);
 }
 
 void multiplexor(Screen& screen, Socket& socket, VTE& vte) {
@@ -509,8 +685,6 @@ void multiplexor(Screen& screen, Socket& socket, VTE& vte) {
 
     if (!socket.poll(50))
         return;
-
-    std::cout << "MUX" << std::endl;
 
     enum {
         STREAM,
@@ -579,12 +753,10 @@ void multiplexor(Screen& screen, Socket& socket, VTE& vte) {
 
             case SB:
 
-                std::cout << "SB : " << (int)c << std::endl;
                 if (c == '\xFF') {
                     telnetstate = SB_IAC;
 
                 } else if (c == '\x18') {
-                    std::cout << "Sending terminal type." << std::endl;
                     send_terminal_type(socket, "xterm");
                 }
                 break;
@@ -600,23 +772,19 @@ void multiplexor(Screen& screen, Socket& socket, VTE& vte) {
                 break;
             
             case DONT:
-                std::cout << "DONT : " << (int)c << std::endl;
                 telnetstate = STREAM;
                 break;
 
             case WONT:
-                std::cout << "WONT : " << (int)c << std::endl;
                 telnetstate = STREAM;
                 break;
 
             case WILL:
-                std::cout << "WILL : " << (int)c << std::endl;
                 telnetstate = STREAM;
                 break;
 
             case DO:
 
-                std::cout << "DO : " << (int)c << std::endl;
                 if (c == '\x1F') {
                     // Window size.
                     telnet_will(socket, c);
@@ -671,8 +839,7 @@ int main(int argc, char** argv) {
 
         screen.mainloop(std::bind(multiplexor, std::placeholders::_1, std::ref(sock), std::ref(vte)),
                         std::bind(resizer, std::placeholders::_1, std::ref(sock), std::ref(vte)),
-                        std::bind(keypressor, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, 
-                                  std::ref(vte))
+                        std::bind(keypressor, std::placeholders::_1, std::placeholders::_2, std::ref(vte))
             );
 
     } catch (std::exception& e) {

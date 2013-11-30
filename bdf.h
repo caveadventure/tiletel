@@ -2337,16 +2337,6 @@ case 187:
 
     for (auto& i : out.glyphs) {
         auto& g = i.second;
-
-        if (i.first == (int)'A') {
-            for (uint8_t zz : g.bitmap) {
-                std::cout << "| " << (int)zz << std::endl;
-                for (int i = 0; i < 8; ++i) {
-                    std::cout << (zz & (1<<i) ? "*" : ".");
-                }
-                std::cout << std::endl;
-            }
-        }
             
         if ((g.w % 8) != 0) {
             g.pitch = (g.w / 8) + 1;
