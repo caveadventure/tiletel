@@ -42,6 +42,7 @@ struct Screen {
 
     bdf::Font font_a;
     bdf::Font font_b;
+    bdf::Font font_c;
 
     unsigned int tw;
     unsigned int th;
@@ -58,6 +59,7 @@ struct Screen {
     Screen(unsigned int tilew, unsigned int tileh, 
            const std::string& fontfile_a, 
            const std::string& fontfile_b, 
+           const std::string& fontfile_c, 
            unsigned int screenw, unsigned int screenh) : 
         tiles(NULL), window(NULL), renderer(NULL), screen(NULL), 
         tw(tilew), th(tileh), 
@@ -115,6 +117,11 @@ struct Screen {
 
             if (font_b.h != th)
                 throw std::runtime_error("Font size does not match tile size: " + fontfile_b);
+
+            bdf::parse_bdf(fontfile_c, font_c);
+
+            if (font_c.h != th)
+                throw std::runtime_error("Font size does not match tile size: " + fontfile_c);
 
         } catch(...) {
 
@@ -188,8 +195,13 @@ struct Screen {
 
             gi = font_b.glyphs.find(ti);
 
-            if (gi == font_b.glyphs.end())
-                return;
+            if (gi == font_b.glyphs.end()) {
+
+                gi = font_c.glyphs.find(ti);
+
+                if (gi == font_c.glyphs.end())
+                    return;
+            }
         }
 
         const auto& glyph = gi->second;
@@ -845,7 +857,7 @@ int main(int argc, char** argv) {
     try {
 
         Screen screen(8, 16,
-                      "terminus.bdf", "unifont.bdf",
+                      "terminus.bdf", "fullwidth16.bdf", "unifont.bdf",
                       70, 25);
 
         Socket sock(argv[1], ::atoi(argv[2]));
