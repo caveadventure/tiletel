@@ -41,6 +41,7 @@ struct Screen {
     SDL_Surface* screen;
 
     bdf::Font font_a;
+    bdf::Font font_b;
 
     unsigned int tw;
     unsigned int th;
@@ -55,7 +56,8 @@ struct Screen {
 
 
     Screen(unsigned int tilew, unsigned int tileh, 
-           const std::string& fontfile, 
+           const std::string& fontfile_a, 
+           const std::string& fontfile_b, 
            unsigned int screenw, unsigned int screenh) : 
         tiles(NULL), window(NULL), renderer(NULL), screen(NULL), 
         tw(tilew), th(tileh), 
@@ -104,10 +106,15 @@ struct Screen {
             tiles_png_w = tiles->w / tw;
             tiles_png_h = tiles->h / th;
 
-            bdf::parse_bdf(fontfile, font_a);
+            bdf::parse_bdf(fontfile_a, font_a);
 
             if (font_a.h != th)
-                throw std::runtime_error("Font size does not match tile size");
+                throw std::runtime_error("Font size does not match tile size: " + fontfile_a);
+
+            bdf::parse_bdf(fontfile_b, font_b);
+
+            if (font_b.h != th)
+                throw std::runtime_error("Font size does not match tile size: " + fontfile_b);
 
         } catch(...) {
 
@@ -133,7 +140,7 @@ struct Screen {
         SDL_Quit();
     }
 
-    void tile(unsigned int x, unsigned int y, uint32_t ti, unsigned int cwidth,
+    void tile(unsigned int x, unsigned int y, uint32_t ti, unsigned int cwidth, bool inverse,
               uint8_t fr, uint8_t fg, uint8_t fb,
               uint8_t br, uint8_t bg, uint8_t bb) {
 
@@ -160,13 +167,30 @@ struct Screen {
         to.w = tw * cwidth;
         to.h = th;
 
+        if (inverse) {
+            uint8_t tr = br;
+            uint8_t tg = bg;
+            uint8_t tb = bb;
+            br = fr;
+            bg = fg;
+            bb = fb;
+            fr = tr;
+            fg = tg;
+            fb = tb;
+        }
+
         SDL_SetRenderDrawColor(renderer, br, bg, bb, 0xFF);
         SDL_RenderFillRect(renderer, &to);
 
         auto gi = font_a.glyphs.find(ti);
 
-        if (gi == font_a.glyphs.end())
-            return;
+        if (gi == font_a.glyphs.end()) {
+
+            gi = font_b.glyphs.find(ti);
+
+            if (gi == font_b.glyphs.end())
+                return;
+        }
 
         const auto& glyph = gi->second;
 
@@ -367,14 +391,14 @@ int tsm_drawer_cb(struct tsm_screen* screen, uint32_t id, const uint32_t* ch, si
     for (unsigned int i = 0; i < len; i += cwidth) {
         uint32_t c = ch[i];
 
-        draw->tile(posx+i, posy, c, cwidth,
+        draw->tile(posx+i, posy, c, cwidth, attr->inverse,
                    attr->fr, attr->fg, attr->fb,
                    attr->br, attr->bg, attr->bb);
     }
 
     if (len == 0) {
         for (unsigned int j = 0; j < cwidth; ++j) {
-            draw->tile(posx+j, posy, (uint32_t)' ', 1,
+            draw->tile(posx+j, posy, (uint32_t)' ', 1, attr->inverse,
                        attr->fr, attr->fg, attr->fb,
                        attr->br, attr->bg, attr->bb);
         }
@@ -821,16 +845,7 @@ int main(int argc, char** argv) {
     try {
 
         Screen screen(8, 16,
-                      argv[3],
-                      //"hannoma.ttf",
-                      //"eduSong_Unicode.ttf",
-                      //"uming.ttc",
-                      //"wqy-microhei.ttc",
-                      //"wqy-zenhei.ttc",
-                      //"odosung.ttc",
-                      //"fireflysung.ttf",
-                      //"terminus.ttf",
-                      //"DroidSansFallbackFull.ttf",
+                      "terminus.bdf", "unifont.bdf",
                       70, 25);
 
         Socket sock(argv[1], ::atoi(argv[2]));
