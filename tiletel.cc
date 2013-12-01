@@ -467,8 +467,6 @@ struct VTE {
 
     void redraw() {
 
-        bm _r("redraw");
-
         tsm_age_t age = tsm_screen_draw(screen, tsm_drawer_cb, &draw);
     }
 
