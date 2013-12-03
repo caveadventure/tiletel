@@ -18,6 +18,7 @@
 
 #include <sys/time.h>
 
+
 struct bm {
     struct timeval b;
     std::string msg;
@@ -114,6 +115,7 @@ struct Screen {
             if (font.h != th)
                 throw std::runtime_error("Font size does not match tile size: " + *fi);
 
+            ++fi;
             while (fi != cfg.fonts.rend()) {
                 bdf::Font font_tmp;
                 bdf::parse_bdf(*fi, font_tmp);
@@ -124,6 +126,7 @@ struct Screen {
                 for (auto& g : font_tmp.glyphs) {
                     font.glyphs[g.first].swap(g.second);
                 }
+                ++fi;
             }
 
 
@@ -844,6 +847,9 @@ void multiplexor(Screen& screen, Socket& socket, VTE& vte) {
 }
 
 
+void usage(const std::string& argv0) {
+    std::cerr << "Usage: " << argv0 << " [--config <cfgfile>] [host] [port]" << std::endl;
+}
 
 int main(int argc, char** argv) {
 
@@ -862,7 +868,7 @@ int main(int argc, char** argv) {
             if (q == "-c" || q == "--config") {
 
                 if (ai+1 >= argc) {
-                    std::cerr << "Usage: " << argv[0] << " --config <cfgfile> [host] [port]" << std::endl;
+                    usage(argv[0]);
                     return 1;
                 }
 
@@ -878,7 +884,7 @@ int main(int argc, char** argv) {
                 did_port = true;
 
             } else {
-                std::cerr << "Usage: " << argv[0] << " --config <cfgfile> [host] [port]" << std::endl;
+                usage(argv[0]);
                 return 1;
             }
         }
@@ -893,6 +899,12 @@ int main(int argc, char** argv) {
 
         if (did_port) {
             cfg.port = port;
+        }
+
+        if (cfg.host.empty()) {
+            std::cerr << "No host to connect to." << std::endl;
+            usage(argv[0]);
+            return 1;
         }
 
         Screen screen(cfg);
