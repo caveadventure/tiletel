@@ -14,6 +14,7 @@
 #include "external/xkbcommon-keysyms.h"
 
 #include "bdf.h"
+#include "config.h"
 
 #include <sys/time.h>
 
@@ -40,9 +41,7 @@ struct Screen {
     SDL_Renderer* renderer;
     SDL_Surface* screen;
 
-    bdf::Font font_a;
-    bdf::Font font_b;
-    bdf::Font font_c;
+    bdf::Font font;
 
     unsigned int tw;
     unsigned int th;
@@ -56,14 +55,10 @@ struct Screen {
     bool done;
 
 
-    Screen(unsigned int tilew, unsigned int tileh, 
-           const std::string& fontfile_a, 
-           const std::string& fontfile_b, 
-           const std::string& fontfile_c, 
-           unsigned int screenw, unsigned int screenh) : 
+    Screen(const config::Config& cfg) : 
         tiles(NULL), window(NULL), renderer(NULL), screen(NULL), 
-        tw(tilew), th(tileh), 
-        sw(screenw), sh(screenh), 
+        tw(cfg.tile_width), th(cfg.tile_height), 
+        sw(cfg.screen_width), sh(cfg.screen_height), 
         done(false)
     {
 
@@ -76,7 +71,8 @@ struct Screen {
                                       SDL_WINDOWPOS_UNDEFINED,
                                       SDL_WINDOWPOS_UNDEFINED,
                                       tw*sw, th*sh,
-                                      SDL_WINDOW_RESIZABLE|SDL_WINDOW_SHOWN);
+                                      SDL_WINDOW_RESIZABLE|SDL_WINDOW_SHOWN|
+                                      (cfg.fullscreen ? SDL_WINDOW_FULLSCREEN : 0));
 
             if (window == NULL)
                 throw std::runtime_error("Could not create window.");
@@ -108,20 +104,28 @@ struct Screen {
             tiles_png_w = tiles->w / tw;
             tiles_png_h = tiles->h / th;
 
-            bdf::parse_bdf(fontfile_a, font_a);
+            auto fi = cfg.fonts.rbegin();
 
-            if (font_a.h != th)
-                throw std::runtime_error("Font size does not match tile size: " + fontfile_a);
+            if (fi == cfg.fonts.rend())
+                throw std::runtime_error("At least one font needs to be specified!");
 
-            bdf::parse_bdf(fontfile_b, font_b);
+            bdf::parse_bdf(*fi, font);
 
-            if (font_b.h != th)
-                throw std::runtime_error("Font size does not match tile size: " + fontfile_b);
+            if (font.h != th)
+                throw std::runtime_error("Font size does not match tile size: " + *fi);
 
-            bdf::parse_bdf(fontfile_c, font_c);
+            while (fi != cfg.fonts.rend()) {
+                bdf::Font font_tmp;
+                bdf::parse_bdf(*fi, font_tmp);
 
-            if (font_c.h != th)
-                throw std::runtime_error("Font size does not match tile size: " + fontfile_c);
+                if (font_tmp.h != th)
+                    throw std::runtime_error("Font size does not match tile size: " + *fi);
+
+                for (auto& g : font_tmp.glyphs) {
+                    font.glyphs[g.first].swap(g.second);
+                }
+            }
+
 
         } catch(...) {
 
@@ -189,20 +193,10 @@ struct Screen {
         SDL_SetRenderDrawColor(renderer, br, bg, bb, 0xFF);
         SDL_RenderFillRect(renderer, &to);
 
-        auto gi = font_a.glyphs.find(ti);
+        auto gi = font.glyphs.find(ti);
 
-        if (gi == font_a.glyphs.end()) {
-
-            gi = font_b.glyphs.find(ti);
-
-            if (gi == font_b.glyphs.end()) {
-
-                gi = font_c.glyphs.find(ti);
-
-                if (gi == font_c.glyphs.end())
-                    return;
-            }
-        }
+        if (gi == font.glyphs.end())
+            return;
 
         const auto& glyph = gi->second;
 
@@ -467,7 +461,8 @@ struct VTE {
 
     void redraw() {
 
-        tsm_age_t age = tsm_screen_draw(screen, tsm_drawer_cb, &draw);
+        //tsm_age_t age =
+        tsm_screen_draw(screen, tsm_drawer_cb, &draw);
     }
 
 };
@@ -854,11 +849,55 @@ int main(int argc, char** argv) {
 
     try {
 
-        Screen screen(8, 16,
-                      "terminus.bdf", "fullwidth16.bdf", "unifont.bdf",
-                      70, 25);
+        std::string configfile("default.cfg");
 
-        Socket sock(argv[1], ::atoi(argv[2]));
+        bool did_host = false;
+        bool did_port = false;
+        std::string host;
+        unsigned int port = 0;
+
+        for (int ai = 1; ai < argc; ++ai) {
+            std::string q(argv[ai]);
+            
+            if (q == "-c" || q == "--config") {
+
+                if (ai+1 >= argc) {
+                    std::cerr << "Usage: " << argv[0] << " --config <cfgfile> [host] [port]" << std::endl;
+                    return 1;
+                }
+
+                configfile = argv[ai+1];
+                ++ai;
+
+            } else if (!did_host) {
+                host = q;
+                did_host = true;
+
+            } else if (!did_port) {
+                port = ::atoi(q.c_str());
+                did_port = true;
+
+            } else {
+                std::cerr << "Usage: " << argv[0] << " --config <cfgfile> [host] [port]" << std::endl;
+                return 1;
+            }
+        }
+            
+
+        config::Config cfg;
+        config::parse_config(configfile, cfg);
+
+        if (did_host) {
+            cfg.host = host;
+        }
+
+        if (did_port) {
+            cfg.port = port;
+        }
+
+        Screen screen(cfg);
+
+        Socket sock(cfg.host, cfg.port);
 
         VTE vte(screen, sock);
 

@@ -41,6 +41,13 @@ else(NOT RAGEL)
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )
 
+  add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/config.h
+    COMMAND ${RAGEL} -s -G2 -o config.h config.rl
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/config.rl
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+
   add_executable(tiletel tiletel.cc 
      libtsm/external/wcwidth.c
      libtsm/src/tsm_vte_charsets.c
@@ -51,6 +58,7 @@ else(NOT RAGEL)
      libtsm/src/tsm_selection.c
      libtsm/src/tsm_unicode.c
      ${CMAKE_CURRENT_SOURCE_DIR}/bdf.h
+     ${CMAKE_CURRENT_SOURCE_DIR}/config.h
    )
 
 endif(NOT RAGEL)

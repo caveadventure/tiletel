@@ -9,6 +9,12 @@ struct Font {
         size_t pitch;
 
         glyph() : w(0), pitch(0) {}
+
+        void swap(glyph& a) {
+            bitmap.swap(a.bitmap);
+            w = a.w;
+            pitch = a.pitch;
+        }
     };
 
     size_t w;
