@@ -91,7 +91,7 @@ struct Screen {
             if (IMG_Init(IMG_INIT_PNG) == 0)
                 throw std::runtime_error("Could not init SDL_Image");
 
-            tiles = IMG_Load("tiles.png");
+            tiles = IMG_Load("tiles2.png");
 
             if (tiles == NULL)
                 throw std::runtime_error("Failed to load tiles.png");
@@ -99,7 +99,7 @@ struct Screen {
             if ((tiles->w % tw) != 0 || 
                 (tiles->h % th) != 0) {
 
-                //throw std::runtime_error("Size of tiles.png does not match tile size");
+                throw std::runtime_error("Size of tiles image does not match tile size");
             }
 
             tiles_png_w = tiles->w / tw;
@@ -158,22 +158,10 @@ struct Screen {
               uint8_t fr, uint8_t fg, uint8_t fb,
               uint8_t br, uint8_t bg, uint8_t bb) {
 
-#if 0
+
         if (x >= sw || y >= sh)
             throw std::runtime_error("Invalid screen offset in tile()");
 
-        SDL_Rect from;
-        from.x = ti % tiles_png_w;
-        from.y = ti / tiles_png_w;
-        from.w = tw;
-        from.h = th;
-
-        if (from.y >= (int)tiles_png_h)
-            throw std::runtime_error("Invalid tile offset in tile()");
-
-        from.x *= tw;
-        from.y *= th;
-#endif
 
         SDL_Rect to;
         to.x = x * tw;
@@ -195,6 +183,34 @@ struct Screen {
 
         SDL_SetRenderDrawColor(renderer, br, bg, bb, 0xFF);
         SDL_RenderFillRect(renderer, &to);
+
+
+        if (ti == 0x6728 || ti == 0x3013 || ti == 0x3001) {
+
+            unsigned int tx = 16;
+            unsigned int ty = 5;
+
+            if (ti == 0x3013) {
+                tx = 12;
+                ty = 1;
+            } else if (ti == 0x3001) {
+                tx = 2;
+                ty = 5;
+            }
+
+            if (ty >= tiles_png_h || tx >= tiles_png_w)
+                throw std::runtime_error("Invalid tile offset in tile()");
+
+            SDL_Rect from;
+            from.x = tx * tw;
+            from.y = ty * th;
+            from.w = tw * cwidth;
+            from.h = th;
+
+            SDL_BlitSurface(tiles, &from, screen, &to);
+            return;
+        }
+
 
         auto gi = font.glyphs.find(ti);
 
@@ -262,7 +278,7 @@ struct Screen {
             break;
 
         case SDL_KEYDOWN:
-            std::cout << "KEYPRESS: " << e.key.keysym.sym << std::endl;
+            //std::cout << "KEYPRESS: " << e.key.keysym.sym << std::endl;
             keypress(*this, e.key.keysym);
             break;
 
@@ -580,7 +596,7 @@ unsigned char doshift(unsigned char c) {
 
 void keypressor(Screen& screen, const SDL_Keysym& k, VTE& vte) {
 
-    std::cout << "| " << (int)k.sym << " " << (int)k.mod << std::endl;
+    //std::cout << "| " << (int)k.sym << " " << (int)k.mod << std::endl;
     unsigned char key = (k.sym > 127 ? '?' : k.sym);
 
     if (key == 0)
@@ -838,6 +854,8 @@ void multiplexor(Screen& screen, Socket& socket, VTE& vte) {
         if (telnetstate == STREAM)
             break;
     }
+
+    bm _x("redraw");
 
     vte.feed(rewritten);
     vte.redraw();
