@@ -7,9 +7,9 @@ SET(CMAKE_BUILD_TYPE "Release")
 SET(CMAKE_CXX_FLAGS "-Wall -std=c++11 -O4 -pthread -g")
 SET(CMAKE_C_FLAGS "-Wall -O4 -pthread -g -DBUILD_ENABLE_DEBUG")
 
-#if(WIN32)
-#  SET(CMAKE_EXE_LINKER_FLAGS "-static -pthread")
-#endif()
+if(WIN32)
+  SET(CMAKE_EXE_LINKER_FLAGS " -static -mwindows")
+endif()
 
 
 SET(ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
@@ -66,11 +66,12 @@ endif(NOT RAGEL)
 
 if(WIN32)
 
-  target_link_libraries(tiletel SDL SDL_net SDL_image SDL_ttf ws2_32)
+  target_link_libraries(tiletel 
+                        mingw32 SDL2main SDL2 SDL2_net SDL2_image ws2_32 winmm imm32 version iphlpapi)
 
 else(WIN32)
 
-  target_link_libraries(tiletel SDL2 SDL2_net SDL2_image SDL2_ttf)
+  target_link_libraries(tiletel SDL2 SDL2_net SDL2_image)
 
 endif(WIN32)
 
