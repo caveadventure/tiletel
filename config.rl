@@ -113,6 +113,8 @@ void parse_config(const std::string& filename, Config& out) {
 
         fonts = 'fonts' (ws1 string %{ out.fonts.push_back(state.match); })+ ws ';';
 
+        tiles = 'tiles' ws1 string %{ out.tiles = state.match; } ws ';';
+
         fullscreen = 'fullscreen' ws1
             (('on'  %{ out.fullscreen = true; }) |
              ('off' %{ out.fullscreen = false; }))
@@ -138,7 +140,7 @@ void parse_config(const std::string& filename, Config& out) {
             ;
 
         config = 
-            fonts | tilesize | screensize | fullscreen | connect_to
+            fonts | tiles | tilesize | screensize | fullscreen | connect_to
             ;
 
       main := (ws config ws)+;

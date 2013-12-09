@@ -4,6 +4,8 @@
 struct Config {
 
     std::vector<std::string> fonts;
+    std::string tiles;
+
     size_t tile_width;
     size_t tile_height;
     size_t screen_width;
