@@ -294,6 +294,8 @@ struct Screen {
             std::cout << "!!! " << (int)rtiles->format->BitsPerPixel 
                       << " " << (int)rtiles->format->BytesPerPixel << std::endl;
 
+            surface_to_indexed(rtiles, tw, th, tiles);
+
             SDL_FreeSurface(rtiles);
             rtiles = NULL;
 
@@ -407,7 +409,11 @@ struct Screen {
                         if (tmp == colormap.end())
                             continue;
 
+                        std::cout << "|| " << (int)tmp->second << " " << yy << " " << xx << " " << what.layers.size() << std::endl;
+
                         bdf::bitmap& bitmap = what.layers[tmp->second].bitmap;
+
+                        std::cout << "++ " << bitmap.pitch << std::endl;
 
                         uint8_t& bmbyte = bitmap.bm[(yy * bitmap.pitch) + (xx / 8)];
 
