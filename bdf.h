@@ -92,7 +92,7 @@ void parse_bdf(const std::string& filename, Font& out) {
     out.w = 0;
     out.h = 0;
 
-    Font::glyph* glyph = &(out.glyphs[0]);
+    bitmap* glyph = &(out.glyphs[0]);
 
     
 #line 204 "bdf.rl"
@@ -665,7 +665,7 @@ tr62:
 	goto st48;
 tr65:
 #line 145 "bdf.rl"
-	{ glyph->bitmap.push_back(bitmapchar); }
+	{ glyph->bm.push_back(bitmapchar); }
 #line 143 "bdf.rl"
 	{ hexchar(bitmapchar, (*( state.p))); }
 	goto st48;
@@ -699,7 +699,7 @@ case 49:
 	goto st0;
 tr64:
 #line 145 "bdf.rl"
-	{ glyph->bitmap.push_back(bitmapchar); }
+	{ glyph->bm.push_back(bitmapchar); }
 	goto st50;
 st50:
 	if ( ++( state.p) == ( state.pe) )

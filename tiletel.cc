@@ -64,6 +64,44 @@ struct Tiler {
         }
     }
 
+    inline void blit_bitmap(SDL_Surface* screen, unsigned int to_x, unsigned int to_y,
+                            T fgc, const bdf::bitmap& bitmap) {
+
+        unsigned int xx = 0;
+        unsigned int yy = 0;
+
+        for (uint8_t v : bitmap.bm) {
+
+            if (v == 0) {
+                xx += 8;
+
+                if (xx >= bitmap.w) {
+                    xx = 0;
+                    ++yy;
+                }
+                continue;
+            }
+
+            T* px = cursor(screen, to_x + xx, to_y + yy);
+
+            for (int bit = 7; bit >= 0; --bit) {
+
+                if (v & (1 << bit)) 
+                    *px = fgc;
+
+                ++xx;
+                ++px;
+
+                if (xx >= bitmap.w) {
+                    xx = 0;
+                    ++yy;
+                    break;
+                }
+            }
+        }
+    }
+
+
     template <typename SCREEN>
     void tile(const SCREEN& self, 
               unsigned int x, unsigned int y, 
@@ -104,38 +142,8 @@ struct Tiler {
 
         const auto& glyph = gi->second;
 
-        unsigned int xx = 0;
-        unsigned int yy = 0;
+        blit_bitmap(self.screen, to_x, to_y, fgc, glyph);
 
-        for (uint8_t v : glyph.bitmap) {
-
-            if (v == 0) {
-                xx += 8;
-
-                if (xx >= glyph.w) {
-                    xx = 0;
-                    ++yy;
-                }
-                continue;
-            }
-
-            T* px = cursor(self.screen, to_x + xx, to_y + yy);
-
-            for (int bit = 7; bit >= 0; --bit) {
-
-                if (v & (1 << bit)) 
-                    *px = fgc;
-
-                ++xx;
-                ++px;
-
-                if (xx >= glyph.w) {
-                    xx = 0;
-                    ++yy;
-                    break;
-                }
-            }
-        }
     }
 };
 
@@ -211,7 +219,6 @@ struct Tiler {
 struct Screen {
 
     SDL_Window* window;
-    //SDL_Renderer* renderer;
     SDL_Surface* screen;
 
     Tiler<uint32_t> tiler;
@@ -224,9 +231,6 @@ struct Screen {
     unsigned int sw;
     unsigned int sh;
 
-    unsigned int tiles_png_w;
-    unsigned int tiles_png_h;
-
     bool done;
 
     // In the unlikely event that someone is reading this:
@@ -234,16 +238,16 @@ struct Screen {
     // Why doesn't a sane cross-platform frame-buffer library exist?
     // I don't need your half-assed thin API over OpenGL, I need access to pixels.
 
-    struct indexed_bitmap_t {
+    struct indexed_bitmap {
         struct layer {
             SDL_Color color;
-            std::vector<SDL_Point> points;
+            bdf::bitmap bitmap;
         };
 
         std::vector<layer> layers;
     };
 
-    std::unordered_map<uint32_t, indexed_bitmap_t> tiles;
+    std::unordered_map<uint32_t, indexed_bitmap> tiles;
     
 
     Screen(const config::Config& cfg) : 
@@ -275,28 +279,9 @@ struct Screen {
             if (screen == NULL)
                 throw std::runtime_error("Could not create window surface");
 
-            switch (screen->format->BytesPerPixel) {
-                /*
-            case 1:
-                tiler = reinterpret_cast<Tiler<uint32_t>*>(new Tiler<uint8_t>);
-                break;
-            case 2:
-                tiler = reinterpret_cast<Tiler<uint32_t>*>(new Tiler<uint16_t>);
-                break;
-                */
-            case 4:
-                //tiler = reinterpret_cast<Tiler<uint32_t>*>(new Tiler<uint32_t>);
-                break;
-            default:
-                throw std::runtime_error("Window surface has unsupported bytes per pixel");
+            if (screen->format->BytesPerPixel != 4) {
+                throw std::runtime_error("Window surface has unsupported bytes per pixel. (Wanted 4)");
             }
-
-            /*
-            renderer = SDL_CreateSoftwareRenderer(screen);
-
-            if (renderer == NULL)
-                throw std::runtime_error("Could not create renderer");
-            */
 
             if (IMG_Init(IMG_INIT_PNG) == 0)
                 throw std::runtime_error("Could not init SDL_Image");
@@ -306,17 +291,8 @@ struct Screen {
             if (rtiles == NULL)
                 throw std::runtime_error("Failed to load tiles bitmap: '" + cfg.tiles + "'");
 
-            if ((rtiles->w % tw) != 0 || 
-                (rtiles->h % th) != 0) {
-
-                throw std::runtime_error("Size of tiles image does not match tile size");
-            }
-
-            tiles_png_w = rtiles->w / tw;
-            tiles_png_h = rtiles->h / th;
-
-
-            std::cout << "!!! " << (int)rtiles->format->BitsPerPixel << " " << (int)rtiles->format->BytesPerPixel << std::endl;
+            std::cout << "!!! " << (int)rtiles->format->BitsPerPixel 
+                      << " " << (int)rtiles->format->BytesPerPixel << std::endl;
 
             SDL_FreeSurface(rtiles);
             rtiles = NULL;
@@ -351,14 +327,6 @@ struct Screen {
             if (rtiles != NULL)
                 SDL_FreeSurface(rtiles);
 
-            /*
-            if (renderer != NULL)
-                SDL_DestroyRenderer(renderer);
-            */
-
-            //if (tiler != NULL)
-            //    delete tiler;
-
             if (window != NULL)
                 SDL_DestroyWindow(window);
 
@@ -369,16 +337,18 @@ struct Screen {
 
     ~Screen() {
 
-        //SDL_DestroyRenderer(renderer);
-        //delete tiler;
-
         SDL_DestroyWindow(window);
         SDL_Quit();
     }
 
-#if 0
+
     static void surface_to_indexed(SDL_Surface* s, unsigned int tw, unsigned int th,
-                                   std::unordered_map<uint32_t, indexed_bitmap_t>& out) {
+                                   std::unordered_map<uint32_t, indexed_bitmap>& out) {
+
+        if ((s->w % tw) != 0 || (s->h % th) != 0) {
+
+            throw std::runtime_error("Size of tiles image does not match tile size");
+        }
 
         if (!SDL_ISPIXELFORMAT_INDEXED(s->format->format))
             throw std::runtime_error("Only indexed (i.e., colormap or palette) tiles are supported");
@@ -388,35 +358,67 @@ struct Screen {
 
         SDL_Palette* palette = s->format->palette;
 
-        indexed_bitmap_t base;
+        indexed_bitmap base;
 
         base.layers.resize(palette->ncolors);
 
+        std::unordered_map<uint8_t, uint8_t> colormap;
+
         for (int ci = 0; ci < palette->ncolors; ++ci) {
-            base.layers[ci].color = palette->colors[ci];
+
+            const SDL_Color& color = palette->colors[ci];
+
+            if (color.a == 0x00)
+                continue;
+
+            colormap[ci] = base.layers.size();
+            base.layers.resize(base.layers.size() + 1);
+            auto& l = base.layers.back();
+
+            l.color = color;
+            l.bitmap.w = tw;
+            l.bitmap.make_pitch();
+            l.bitmap.bm.resize(l.bitmap.pitch * th);
         }
 
-        uint8_t* pixels = s->pixels;
-        for (unsigned int y = 0; y < s->h; ++y) {
+        unsigned int numtw = s->w / tw;
+        unsigned int numth = s->h / th;
 
-            uint8_t* row = pixels + y * s->pitch;
-            for (unsigned int x = 0; x < s->w; ++x) {
+        for (unsigned int tyy = 0; tyy < numth; ++tyy) {
+            for (unsigned int txx = 0; txx < numtw; ++txx) {
 
-                uint8_t pixel = *(row + x);
+                uint32_t which = (tyy * numtw) + txx;
 
-                uint32_t which = (y / th) * (s->w / tw) + (x / tw);
+                out[which] = base;
+                indexed_bitmap& what = out[which];
 
-                if (out.count(which) == 0) {
-                    out[which] = base;
+                uint8_t* pixels0 = (uint8_t*)s->pixels + (tyy * th) * s->pitch + (txx * tw);
+
+                for (unsigned int yy = 0; yy < th; ++yy) {
+
+                    uint8_t* pixels = pixels0 + (yy * s->pitch);
+
+                    for (unsigned int xx = 0; xx < tw; ++xx, ++pixels) {
+
+                        uint8_t color = *pixels;
+
+                        auto tmp = colormap.find(color);
+
+                        if (tmp == colormap.end())
+                            continue;
+
+                        bdf::bitmap& bitmap = what.layers[tmp->second].bitmap;
+
+                        uint8_t& bmbyte = bitmap.bm[(yy * bitmap.pitch) + (xx / 8)];
+
+                        bmbyte |= (1 << (7 - (xx % 8)));
+
+                    }
                 }
-
-                indexed_bitmap_t& what = out[which];
-
-                what.layers[pixel].push_back(SDL_Point{x, y});
             }
         }
     }
-#endif
+
 
     void tile(unsigned int x, unsigned int y, 
               uint32_t ti, unsigned int cwidth, bool inverse,
@@ -443,14 +445,6 @@ struct Screen {
                 sh = e.window.data2/th;
 
                 screen = SDL_GetWindowSurface(window);
-
-                /*
-                SDL_DestroyRenderer(renderer);
-                renderer = SDL_CreateSoftwareRenderer(screen);
-
-                if (renderer == NULL)
-                    throw std::runtime_error("Could not create renderer");
-                */
 
                 resizer(*this);
             }

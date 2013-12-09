@@ -90,7 +90,7 @@ void parse_bdf(const std::string& filename, Font& out) {
     out.w = 0;
     out.h = 0;
 
-    Font::glyph* glyph = &(out.glyphs[0]);
+    bitmap* glyph = &(out.glyphs[0]);
 
     %%{
 
@@ -142,7 +142,7 @@ void parse_bdf(const std::string& filename, Font& out) {
         bitmapchar = 
             ([0-9A-F]) ${ hexchar(bitmapchar, fc); }
             ([0-9A-F]) ${ hexchar(bitmapchar, fc); }
-            %{ glyph->bitmap.push_back(bitmapchar); }
+            %{ glyph->bm.push_back(bitmapchar); }
             ;
 
         bitmapline = bitmapchar+ '\n';
