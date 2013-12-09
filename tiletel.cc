@@ -69,6 +69,14 @@ struct Screen {
     };
 
     std::unordered_map<uint32_t, indexed_bitmap_t> tiles;
+
+#define DRAW_FASTSETPIXELXY(x, y, type, bpp, color) \
+    *(type *)((Uint8 *)dst->pixels + (y) * dst->pitch \
+                                   + (x) * bpp) = (type) color
+
+#define DRAW_FASTSETPIXELXY1(x, y) DRAW_FASTSETPIXELXY(x, y, Uint8, 1, color)
+#define DRAW_FASTSETPIXELXY2(x, y) DRAW_FASTSETPIXELXY(x, y, Uint16, 2, color)
+#define DRAW_FASTSETPIXELXY4(x, y) DRAW_FASTSETPIXELXY(x, y, Uint32, 4, color)
     
 
     Screen(const config::Config& cfg) : 
@@ -99,6 +107,8 @@ struct Screen {
 
             if (screen == NULL)
                 throw std::runtime_error("Could not create window surface");
+
+            std::cout << "SCREEN bytesperpixel " << screen->format->BytesPerPixel << std::endl;
 
             renderer = SDL_CreateSoftwareRenderer(screen);
 
@@ -176,6 +186,7 @@ struct Screen {
         SDL_Quit();
     }
 
+#if 0
     static void surface_to_indexed(SDL_Surface* s, unsigned int tw, unsigned int th,
                                    std::unordered_map<uint32_t, indexed_bitmap_t>& out) {
 
@@ -215,7 +226,7 @@ struct Screen {
             }
         }
     }
-
+#endif
 
     void tile(unsigned int x, unsigned int y, uint32_t ti, unsigned int cwidth, bool inverse,
               uint8_t fr, uint8_t fg, uint8_t fb,
