@@ -4,8 +4,8 @@ project (tiletel)
 
 SET(CMAKE_BUILD_TYPE "Release")
 
-SET(CMAKE_CXX_FLAGS "-Wall -std=c++11 -O4 -pthread -g")
-SET(CMAKE_C_FLAGS "-Wall -O4 -pthread -g -DBUILD_ENABLE_DEBUG")
+SET(CMAKE_CXX_FLAGS_RELEASE "-Wall -std=c++11 -O4 -pthread -g")
+SET(CMAKE_C_FLAGS_RELEASE "-Wall -O4 -pthread -g")
 
 if(WIN32)
   SET(CMAKE_EXE_LINKER_FLAGS " -static -mwindows")

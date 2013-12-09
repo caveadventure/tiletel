@@ -35,213 +35,50 @@ struct bm {
 };
 
 
-struct Screen {
+template <typename T>
+struct Tiler {
 
-    SDL_Window* window;
-    SDL_Renderer* renderer;
-    SDL_Surface* screen;
-
-    bdf::Font font;
-
-    unsigned int tw;
-    unsigned int th;
-
-    unsigned int sw;
-    unsigned int sh;
-
-    unsigned int tiles_png_w;
-    unsigned int tiles_png_h;
-
-    bool done;
-
-    // In the unlikely event that someone is reading this:
-    // SDL is a massive piece of shit.
-    // Why doesn't a sane cross-platform frame-buffer library exist?
-    // I don't need your half-assed thin API over OpenGL, I need access to pixels.
-
-    struct indexed_bitmap_t {
-        struct layer {
-            SDL_Color color;
-            std::vector<SDL_Point> points;
-        };
-
-        std::vector<layer> layers;
-    };
-
-    std::unordered_map<uint32_t, indexed_bitmap_t> tiles;
-
-#define DRAW_FASTSETPIXELXY(x, y, type, bpp, color) \
-    *(type *)((Uint8 *)dst->pixels + (y) * dst->pitch \
-                                   + (x) * bpp) = (type) color
-
-#define DRAW_FASTSETPIXELXY1(x, y) DRAW_FASTSETPIXELXY(x, y, Uint8, 1, color)
-#define DRAW_FASTSETPIXELXY2(x, y) DRAW_FASTSETPIXELXY(x, y, Uint16, 2, color)
-#define DRAW_FASTSETPIXELXY4(x, y) DRAW_FASTSETPIXELXY(x, y, Uint32, 4, color)
-    
-
-    Screen(const config::Config& cfg) : 
-        window(NULL), renderer(NULL), screen(NULL), 
-        tw(cfg.tile_width), th(cfg.tile_height), 
-        sw(cfg.screen_width), sh(cfg.screen_height), 
-        done(false)
-    {
-
-        SDL_Surface* rtiles = NULL;
-
-        try {
-
-            if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER) < 0)
-                throw std::runtime_error("Could not init SDL");
-
-            window = SDL_CreateWindow("tiletel",
-                                      SDL_WINDOWPOS_UNDEFINED,
-                                      SDL_WINDOWPOS_UNDEFINED,
-                                      tw*sw, th*sh,
-                                      SDL_WINDOW_RESIZABLE|SDL_WINDOW_SHOWN|
-                                      (cfg.fullscreen ? SDL_WINDOW_FULLSCREEN : 0));
-
-            if (window == NULL)
-                throw std::runtime_error("Could not create window.");
-
-            screen = SDL_GetWindowSurface(window);
-
-            if (screen == NULL)
-                throw std::runtime_error("Could not create window surface");
-
-            std::cout << "SCREEN bytesperpixel " << screen->format->BytesPerPixel << std::endl;
-
-            renderer = SDL_CreateSoftwareRenderer(screen);
-
-            if (renderer == NULL)
-                throw std::runtime_error("Could not create renderer");
-
-            if (IMG_Init(IMG_INIT_PNG) == 0)
-                throw std::runtime_error("Could not init SDL_Image");
-
-            rtiles = IMG_Load(cfg.tiles.c_str());
-
-            if (rtiles == NULL)
-                throw std::runtime_error("Failed to load tiles bitmap: '" + cfg.tiles + "'");
-
-            if ((rtiles->w % tw) != 0 || 
-                (rtiles->h % th) != 0) {
-
-                throw std::runtime_error("Size of tiles image does not match tile size");
-            }
-
-            tiles_png_w = rtiles->w / tw;
-            tiles_png_h = rtiles->h / th;
-
-
-            std::cout << "!!! " << (int)rtiles->format->BitsPerPixel << " " << (int)rtiles->format->BytesPerPixel << std::endl;
-
-            SDL_FreeSurface(rtiles);
-            rtiles = NULL;
-
-            auto fi = cfg.fonts.rbegin();
-
-            if (fi == cfg.fonts.rend())
-                throw std::runtime_error("At least one font needs to be specified!");
-
-            bdf::parse_bdf(*fi, font);
-
-            if (font.h != th)
-                throw std::runtime_error("Font size does not match tile size: " + *fi);
-
-            ++fi;
-            while (fi != cfg.fonts.rend()) {
-                bdf::Font font_tmp;
-                bdf::parse_bdf(*fi, font_tmp);
-
-                if (font_tmp.h != th)
-                    throw std::runtime_error("Font size does not match tile size: " + *fi);
-
-                for (auto& g : font_tmp.glyphs) {
-                    font.glyphs[g.first].swap(g.second);
-                }
-                ++fi;
-            }
-
-
-        } catch (...) {
-
-            if (rtiles != NULL)
-                SDL_FreeSurface(rtiles);
-
-            if (renderer != NULL)
-                SDL_DestroyRenderer(renderer);
-
-            if (window != NULL)
-                SDL_DestroyWindow(window);
-
-            SDL_Quit();
-            throw;
-        }
+    inline T map_color(SDL_Surface* screen, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+        uint32_t _r = SDL_MapRGBA(screen->format, r, g, b, a);
+        return (T)_r;
     }
 
-    ~Screen() {
-
-        SDL_DestroyRenderer(renderer);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
+    inline T* cursor(SDL_Surface* screen, unsigned int x, unsigned int y) {
+        return (T*)((uint8_t*)screen->pixels + (y * screen->pitch) + (x * sizeof(T)));
     }
 
-#if 0
-    static void surface_to_indexed(SDL_Surface* s, unsigned int tw, unsigned int th,
-                                   std::unordered_map<uint32_t, indexed_bitmap_t>& out) {
+    inline void set_pixel(SDL_Surface* screen, unsigned int x, unsigned int y, T color) {
+        *cursor(screen, x, y) = color;
+    }
 
-        if (!SDL_ISPIXELFORMAT_INDEXED(s->format->format))
-            throw std::runtime_error("Only indexed (i.e., colormap or palette) tiles are supported");
+    inline void fill_rect(SDL_Surface* screen, unsigned int to_x, unsigned int to_y, 
+                          unsigned int to_w, unsigned int to_h, T bgc) {
 
-        if (s->format->BitsPerPixel != 8)
-            throw std::runtime_error("Sanity error: SDL BitsPerPixel should be 8");
+        for (unsigned int yy = to_y; yy < to_h + to_y; ++yy) {
 
-        SDL_Palette* palette = s->format->palette;
+            T* px = cursor(screen, to_x, yy);
 
-        indexed_bitmap_t base;
-
-        base.layers.resize(palette->ncolors);
-
-        for (int ci = 0; ci < palette->ncolors; ++ci) {
-            base.layers[ci].color = palette->colors[ci];
-        }
-
-        uint8_t* pixels = s->pixels;
-        for (unsigned int y = 0; y < s->h; ++y) {
-
-            uint8_t* row = pixels + y * s->pitch;
-            for (unsigned int x = 0; x < s->w; ++x) {
-
-                uint8_t pixel = *(row + x);
-
-                uint32_t which = (y / th) * (s->w / tw) + (x / tw);
-
-                if (out.count(which) == 0) {
-                    out[which] = base;
-                }
-
-                indexed_bitmap_t& what = out[which];
-
-                what.layers[pixel].push_back(SDL_Point{x, y});
+            for (unsigned int xx = 0; xx < to_w; ++xx, ++px) {
+                *px = bgc;
             }
         }
     }
-#endif
 
-    void tile(unsigned int x, unsigned int y, uint32_t ti, unsigned int cwidth, bool inverse,
+    template <typename SCREEN>
+    void tile(const SCREEN& self, 
+              unsigned int x, unsigned int y, 
+              uint32_t ti, unsigned int cwidth, bool inverse,
               uint8_t fr, uint8_t fg, uint8_t fb,
               uint8_t br, uint8_t bg, uint8_t bb) {
 
 
-        if (x >= sw || y >= sh)
+        if (x >= self.sw || y >= self.sh)
             throw std::runtime_error("Invalid screen offset in tile()");
 
-
-        SDL_Rect to;
-        to.x = x * tw;
-        to.y = y * th;
-        to.w = tw * cwidth;
-        to.h = th;
+        unsigned int to_x = x * self.tw;
+        unsigned int to_y = y * self.th;
+        unsigned int to_w = self.tw * cwidth;
+        unsigned int to_h = self.th;
 
         if (inverse) {
             uint8_t tr = br;
@@ -255,8 +92,49 @@ struct Screen {
             fb = tb;
         }
 
-        SDL_SetRenderDrawColor(renderer, br, bg, bb, 0xFF);
-        SDL_RenderFillRect(renderer, &to);
+        T fgc = map_color(self.screen, fr, fg, fb, 0xFF);
+        T bgc = map_color(self.screen, br, bg, bb, 0xFF);
+
+        fill_rect(self.screen, to_x, to_y, to_w, to_h, bgc);
+
+        auto gi = self.font.glyphs.find(ti);
+
+        if (gi == self.font.glyphs.end())
+            return;
+
+        const auto& glyph = gi->second;
+
+        unsigned int xx = 0;
+        unsigned int yy = 0;
+
+        for (uint8_t v : glyph.bitmap) {
+
+            if (v == 0) {
+                xx += 8;
+
+                if (xx >= glyph.w) {
+                    xx = 0;
+                    ++yy;
+                }
+                continue;
+            }
+
+            for (int bit = 7; bit >= 0; --bit) {
+                if (v & (1 << bit)) 
+                    set_pixel(self.screen, to_x + xx, to_y + yy, fgc);
+
+                ++xx;
+                if (xx >= glyph.w) {
+                    xx = 0;
+                    ++yy;
+                    break;
+                }
+            }
+        }
+    }
+};
+
+
 
 #if 0
         if (ti == 0x6728 || ti == 0x3013 || ti == 0x3001) {
@@ -324,43 +202,225 @@ struct Screen {
         }
 #endif
 
-        auto gi = font.glyphs.find(ti);
 
-        if (gi == font.glyphs.end())
-            return;
+struct Screen {
 
-        const auto& glyph = gi->second;
+    SDL_Window* window;
+    //SDL_Renderer* renderer;
+    SDL_Surface* screen;
 
-        SDL_SetRenderDrawColor(renderer, fr, fg, fb, 0xFF);
+    Tiler<uint32_t> tiler;
 
-        unsigned int xx = 0;
-        unsigned int yy = 0;
+    bdf::Font font;
 
-        for (uint8_t v : glyph.bitmap) {
+    unsigned int tw;
+    unsigned int th;
 
-            if (v == 0) {
-                xx += 8;
+    unsigned int sw;
+    unsigned int sh;
 
-                if (xx >= glyph.w) {
-                    xx = 0;
-                    ++yy;
-                }
-                continue;
+    unsigned int tiles_png_w;
+    unsigned int tiles_png_h;
+
+    bool done;
+
+    // In the unlikely event that someone is reading this:
+    // SDL is a massive piece of shit.
+    // Why doesn't a sane cross-platform frame-buffer library exist?
+    // I don't need your half-assed thin API over OpenGL, I need access to pixels.
+
+    struct indexed_bitmap_t {
+        struct layer {
+            SDL_Color color;
+            std::vector<SDL_Point> points;
+        };
+
+        std::vector<layer> layers;
+    };
+
+    std::unordered_map<uint32_t, indexed_bitmap_t> tiles;
+    
+
+    Screen(const config::Config& cfg) : 
+        window(NULL), screen(NULL), 
+        tw(cfg.tile_width), th(cfg.tile_height), 
+        sw(cfg.screen_width), sh(cfg.screen_height), 
+        done(false)
+    {
+
+        SDL_Surface* rtiles = NULL;
+
+        try {
+
+            if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER) < 0)
+                throw std::runtime_error("Could not init SDL");
+
+            window = SDL_CreateWindow("tiletel",
+                                      SDL_WINDOWPOS_UNDEFINED,
+                                      SDL_WINDOWPOS_UNDEFINED,
+                                      tw*sw, th*sh,
+                                      SDL_WINDOW_RESIZABLE|SDL_WINDOW_SHOWN|
+                                      (cfg.fullscreen ? SDL_WINDOW_FULLSCREEN : 0));
+
+            if (window == NULL)
+                throw std::runtime_error("Could not create window.");
+
+            screen = SDL_GetWindowSurface(window);
+
+            if (screen == NULL)
+                throw std::runtime_error("Could not create window surface");
+
+            switch (screen->format->BytesPerPixel) {
+                /*
+            case 1:
+                tiler = reinterpret_cast<Tiler<uint32_t>*>(new Tiler<uint8_t>);
+                break;
+            case 2:
+                tiler = reinterpret_cast<Tiler<uint32_t>*>(new Tiler<uint16_t>);
+                break;
+                */
+            case 4:
+                //tiler = reinterpret_cast<Tiler<uint32_t>*>(new Tiler<uint32_t>);
+                break;
+            default:
+                throw std::runtime_error("Window surface has unsupported bytes per pixel");
             }
 
-            for (int bit = 7; bit >= 0; --bit) {
-                if (v & (1 << bit)) 
-                    SDL_RenderDrawPoint(renderer, to.x + xx, to.y + yy);
+            /*
+            renderer = SDL_CreateSoftwareRenderer(screen);
 
-                ++xx;
-                if (xx >= glyph.w) {
-                    xx = 0;
-                    ++yy;
-                    break;
+            if (renderer == NULL)
+                throw std::runtime_error("Could not create renderer");
+            */
+
+            if (IMG_Init(IMG_INIT_PNG) == 0)
+                throw std::runtime_error("Could not init SDL_Image");
+
+            rtiles = IMG_Load(cfg.tiles.c_str());
+
+            if (rtiles == NULL)
+                throw std::runtime_error("Failed to load tiles bitmap: '" + cfg.tiles + "'");
+
+            if ((rtiles->w % tw) != 0 || 
+                (rtiles->h % th) != 0) {
+
+                throw std::runtime_error("Size of tiles image does not match tile size");
+            }
+
+            tiles_png_w = rtiles->w / tw;
+            tiles_png_h = rtiles->h / th;
+
+
+            std::cout << "!!! " << (int)rtiles->format->BitsPerPixel << " " << (int)rtiles->format->BytesPerPixel << std::endl;
+
+            SDL_FreeSurface(rtiles);
+            rtiles = NULL;
+
+            auto fi = cfg.fonts.rbegin();
+
+            if (fi == cfg.fonts.rend())
+                throw std::runtime_error("At least one font needs to be specified!");
+
+            bdf::parse_bdf(*fi, font);
+
+            if (font.h != th)
+                throw std::runtime_error("Font size does not match tile size: " + *fi);
+
+            ++fi;
+            while (fi != cfg.fonts.rend()) {
+                bdf::Font font_tmp;
+                bdf::parse_bdf(*fi, font_tmp);
+
+                if (font_tmp.h != th)
+                    throw std::runtime_error("Font size does not match tile size: " + *fi);
+
+                for (auto& g : font_tmp.glyphs) {
+                    font.glyphs[g.first].swap(g.second);
                 }
+                ++fi;
+            }
+
+
+        } catch (...) {
+
+            if (rtiles != NULL)
+                SDL_FreeSurface(rtiles);
+
+            /*
+            if (renderer != NULL)
+                SDL_DestroyRenderer(renderer);
+            */
+
+            //if (tiler != NULL)
+            //    delete tiler;
+
+            if (window != NULL)
+                SDL_DestroyWindow(window);
+
+            SDL_Quit();
+            throw;
+        }
+    }
+
+    ~Screen() {
+
+        //SDL_DestroyRenderer(renderer);
+        //delete tiler;
+
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+    }
+
+#if 0
+    static void surface_to_indexed(SDL_Surface* s, unsigned int tw, unsigned int th,
+                                   std::unordered_map<uint32_t, indexed_bitmap_t>& out) {
+
+        if (!SDL_ISPIXELFORMAT_INDEXED(s->format->format))
+            throw std::runtime_error("Only indexed (i.e., colormap or palette) tiles are supported");
+
+        if (s->format->BitsPerPixel != 8)
+            throw std::runtime_error("Sanity error: SDL BitsPerPixel should be 8");
+
+        SDL_Palette* palette = s->format->palette;
+
+        indexed_bitmap_t base;
+
+        base.layers.resize(palette->ncolors);
+
+        for (int ci = 0; ci < palette->ncolors; ++ci) {
+            base.layers[ci].color = palette->colors[ci];
+        }
+
+        uint8_t* pixels = s->pixels;
+        for (unsigned int y = 0; y < s->h; ++y) {
+
+            uint8_t* row = pixels + y * s->pitch;
+            for (unsigned int x = 0; x < s->w; ++x) {
+
+                uint8_t pixel = *(row + x);
+
+                uint32_t which = (y / th) * (s->w / tw) + (x / tw);
+
+                if (out.count(which) == 0) {
+                    out[which] = base;
+                }
+
+                indexed_bitmap_t& what = out[which];
+
+                what.layers[pixel].push_back(SDL_Point{x, y});
             }
         }
     }
+#endif
+
+    void tile(unsigned int x, unsigned int y, 
+              uint32_t ti, unsigned int cwidth, bool inverse,
+              uint8_t fr, uint8_t fg, uint8_t fb,
+              uint8_t br, uint8_t bg, uint8_t bb) {
+
+        tiler.tile(*this, x, y, ti, cwidth, inverse, fr, fg, fb, br, bg, bb);
+    }
+
 
     template <typename FUNC_R, typename FUNC_K>
     void handle_event(const SDL_Event& e, FUNC_R resizer, FUNC_K keypress) {
@@ -379,11 +439,13 @@ struct Screen {
 
                 screen = SDL_GetWindowSurface(window);
 
+                /*
                 SDL_DestroyRenderer(renderer);
                 renderer = SDL_CreateSoftwareRenderer(screen);
 
                 if (renderer == NULL)
                     throw std::runtime_error("Could not create renderer");
+                */
 
                 resizer(*this);
             }
