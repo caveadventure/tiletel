@@ -119,11 +119,16 @@ struct Tiler {
                 continue;
             }
 
+            T* px = cursor(self.screen, to_x + xx, to_y + yy);
+
             for (int bit = 7; bit >= 0; --bit) {
+
                 if (v & (1 << bit)) 
-                    set_pixel(self.screen, to_x + xx, to_y + yy, fgc);
+                    *px = fgc;
 
                 ++xx;
+                ++px;
+
                 if (xx >= glyph.w) {
                     xx = 0;
                     ++yy;
