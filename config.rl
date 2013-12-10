@@ -169,6 +169,11 @@ void parse_config(const std::string& filename, Config& out) {
             ws ';'
             ;
 
+        palette = 'palette' 
+            ws1 string %{ out.palette = state.match; }
+            ws ';'
+            ;
+
         map = 'map'
             ws1 string %{ utf8_glyph = state.match; }
             ws1 number %{ add_map(out, utf8_glyph, utf8_mach, toint(state.match)); }
@@ -177,7 +182,7 @@ void parse_config(const std::string& filename, Config& out) {
 
         config = 
             fonts | tiles | tilesize | screensize | fullscreen | 
-            connect_to | polling_rate | map
+            connect_to | polling_rate | palette | map
             ;
 
       main := (ws config ws)+;

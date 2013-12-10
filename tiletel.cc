@@ -103,7 +103,18 @@ struct Tiler {
 
 
     inline uint32_t color_mul(SDL_Surface* screen, const SDL_Color& c, uint8_t r, uint8_t g, uint8_t b) {
-        return map_color(screen, ((r*c.r)/256.0), ((g*c.g)/256.0), ((b*c.b)/256.0), c.a);
+        return map_color(screen, ((r*c.r)/256), ((g*c.g)/256), ((b*c.b)/256), c.a);
+    }
+
+    inline uint32_t color_screen(SDL_Surface* screen, const SDL_Color& c, uint8_t r, uint8_t g, uint8_t b) {
+        return map_color(screen, 
+                         256 - (((256-r)*(256-c.r))/256.0), 
+                         256 - (((256-g)*(256-c.g))/256.0), 
+                         256 - (((256-b)*(256-c.b))/256.0), c.a);
+    }
+
+    inline uint32_t color_avg(SDL_Surface* screen, const SDL_Color& c, uint8_t r, uint8_t g, uint8_t b) {
+        return map_color(screen, ((r+c.r)/2), ((g+c.g)/2), ((b+c.b)/2), c.a);
     }
 
     template <typename SCREEN>
@@ -701,6 +712,9 @@ struct VTE {
         tsm_screen_draw(screen, tsm_drawer_cb, &draw);
     }
 
+    void set_palette(const std::string& palette) {
+        tsm_vte_set_palette(vte, palette.c_str());
+    }
 };
 
 
@@ -1147,6 +1161,10 @@ int main(int argc, char** argv) {
         Socket sock(cfg.host, cfg.port);
 
         VTE vte(screen, sock);
+
+        if (cfg.palette.size() > 0) {
+            vte.set_palette(cfg.palette);
+        }
 
         screen.mainloop(std::bind(multiplexor, std::placeholders::_1, std::ref(sock), std::ref(vte), cfg.polling_rate),
                         std::bind(resizer, std::placeholders::_1, std::ref(sock), std::ref(vte)),
