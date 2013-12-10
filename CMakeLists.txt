@@ -27,8 +27,6 @@ if(NOT RAGEL)
      libtsm/src/shl_htable.c 
      libtsm/src/tsm_screen.c
      libtsm/src/tsm_vte.c
-     libtsm/src/tsm_render.c
-     libtsm/src/tsm_selection.c
      libtsm/src/tsm_unicode.c
   )
 
@@ -54,8 +52,6 @@ else(NOT RAGEL)
      libtsm/src/shl_htable.c 
      libtsm/src/tsm_screen.c
      libtsm/src/tsm_vte.c
-     libtsm/src/tsm_render.c
-     libtsm/src/tsm_selection.c
      libtsm/src/tsm_unicode.c
      ${CMAKE_CURRENT_SOURCE_DIR}/bdf.h
      ${CMAKE_CURRENT_SOURCE_DIR}/config.h
