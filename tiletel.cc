@@ -135,6 +135,34 @@ struct Tiler {
 
         fill_rect(self.screen, to_x, to_y, to_w, to_h, bgc);
 
+        //
+        if (ti == 0x6728 || ti == 0x3013 || ti == 0x3001) {
+
+            uint32_t pixi;
+
+            switch (ti) {
+            case 0x6728: pixi = 116; break;
+            case 0x3013: pixi = 30; break;
+            case 0x3001: pixi = 102; break;
+            default: pixi = 200; break;
+            }
+
+            for (unsigned int cwi = 0; cwi < cwidth; ++cwi, ++pixi, to_x += self.tw) {
+
+                auto tmpi = self.tiles.find(pixi);
+                if (tmpi == self.tiles.end())
+                    return;
+
+                for (const auto& l : tmpi->second.layers) {
+                    T fgp = map_color(self.screen, l.color.r, l.color.g, l.color.b, l.color.a);
+                    blit_bitmap(self.screen, to_x, to_y, fgp, l.bitmap);
+                }
+            }
+
+            return;
+        }
+        //
+
         auto gi = self.font.glyphs.find(ti);
 
         if (gi == self.font.glyphs.end())
@@ -344,8 +372,6 @@ struct Screen {
     }
 
     static void print_bitmap(uint32_t ix, const bdf::bitmap& bitmap) {
-        
-        std::cout << "\n\n[][ " << ix << " ][]\n" << std::endl;
 
         unsigned int x = 0;
 
@@ -488,7 +514,15 @@ struct Screen {
             if (ib.layers.empty()) {
                 iz = out.erase(iz);
             } else {
-                print_bitmap(iz->first, ib.layers.front().bitmap);
+                
+                std::cout << "\n\n[][ " << iz->first << " ][]\n" << std::endl;
+                for (const auto& zzz : ib.layers) {
+                    std::cout << "  color " << (int)zzz.color.r << "," 
+                              << (int)zzz.color.g << "," << (int)zzz.color.b << std::endl;
+                    print_bitmap(iz->first, zzz.bitmap);
+                    std::cout << std::endl;
+                }
+
                 ++iz;
             }
         }
