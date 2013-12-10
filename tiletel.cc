@@ -343,6 +343,33 @@ struct Screen {
         SDL_Quit();
     }
 
+    static void print_bitmap(uint32_t ix, const bdf::bitmap& bitmap) {
+        
+        std::cout << "\n\n[][ " << ix << " ][]\n" << std::endl;
+
+        unsigned int x = 0;
+
+        for (uint8_t v : bitmap.bm) {
+
+            for (int bit = 7; bit >= 0; --bit) {
+
+                if (v & (1 << bit)) {
+                    std::cout << "*";
+                } else {
+                    std::cout << "-";
+                }
+
+                ++x;
+
+                if (x >= bitmap.w) {
+                    x = 0;
+                    std::cout << std::endl;
+                    break;
+                }
+            }
+        }
+    }
+
 
     static void surface_to_indexed(SDL_Surface* s, unsigned int tw, unsigned int th,
                                    std::unordered_map<uint32_t, indexed_bitmap>& out) {
@@ -362,9 +389,9 @@ struct Screen {
 
         indexed_bitmap base;
 
-        base.layers.resize(palette->ncolors);
+        std::unordered_map<uint32_t, size_t> colormap;
 
-        std::unordered_map<uint8_t, uint8_t> colormap;
+        std::cout << "NCOLORS " << palette->ncolors << std::endl;
 
         for (int ci = 0; ci < palette->ncolors; ++ci) {
 
@@ -373,9 +400,16 @@ struct Screen {
             if (color.a == 0x00)
                 continue;
 
-            colormap[ci] = base.layers.size();
+            uint32_t colorhash = (color.r << 24) | (color.g << 16) | (color.b << 8) | (color.a);
+
+            if (colormap.count(colorhash) != 0)
+                continue;
+
+            colormap[colorhash] = base.layers.size();
             base.layers.resize(base.layers.size() + 1);
             auto& l = base.layers.back();
+
+            std::cout << " ---> " << base.layers.size() << std::endl;
 
             l.color = color;
             l.bitmap.w = tw;
@@ -402,9 +436,11 @@ struct Screen {
 
                     for (unsigned int xx = 0; xx < tw; ++xx, ++pixels) {
 
-                        uint8_t color = *pixels;
+                        uint8_t colorix = *pixels;
+                        const SDL_Color& color = palette->colors[colorix];
+                        uint32_t colorhash = (color.r << 24) | (color.g << 16) | (color.b << 8) | (color.a);
 
-                        auto tmp = colormap.find(color);
+                        auto tmp = colormap.find(colorhash);
 
                         if (tmp == colormap.end())
                             continue;
@@ -421,6 +457,39 @@ struct Screen {
 
                     }
                 }
+            }
+        }
+
+        auto iz = out.begin();
+        while (iz != out.end()) {
+
+            indexed_bitmap& ib = iz->second;
+            auto z = ib.layers.begin();
+
+            while (z != ib.layers.end()) {
+
+                bdf::bitmap& bitmap = z->bitmap;
+                bool all_empty = true;
+
+                for (uint8_t bmbyte : bitmap.bm) {
+                    if (bmbyte != 0) {
+                        all_empty = false;
+                        break;
+                    }
+                }
+
+                if (all_empty) {
+                    z = ib.layers.erase(z);
+                } else {
+                    ++z;
+                }
+            }
+
+            if (ib.layers.empty()) {
+                iz = out.erase(iz);
+            } else {
+                print_bitmap(iz->first, ib.layers.front().bitmap);
+                ++iz;
             }
         }
     }
