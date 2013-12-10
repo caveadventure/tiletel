@@ -18,6 +18,9 @@
 
 #include <vector>
 
+extern "C" {
+#include "libtsm/src/libtsm_int.h"
+}
 
 namespace config {
 
@@ -50,6 +53,24 @@ inline int toint(const std::string& s) {
     return ::atoi(s.c_str());
 }
 
+inline void add_map(Config& out, const std::string& utf8_glyph, tsm_utf8_mach* utf8_mach, uint32_t tile) {
+
+    tsm_utf8_mach_reset(utf8_mach);
+
+    for (char c : utf8_glyph) {
+        std::cout << "? " << (int)c << std::endl;
+
+        int x = tsm_utf8_mach_feed(utf8_mach, c);
+
+        if (x == TSM_UTF8_ACCEPT || x == TSM_UTF8_REJECT) {
+            uint32_t ucs = tsm_utf8_mach_get(utf8_mach);
+            out.tile_mapping[ucs] = tile;
+            std::cout << " map " << ucs << " " << tile << std::endl;
+            return;
+        }
+    }
+}
+
 void parse_config(const std::string& filename, Config& out) {
 
     /** File reading cruft. **/
@@ -64,6 +85,10 @@ void parse_config(const std::string& filename, Config& out) {
 
     ragel_state state;
 
+    tsm_utf8_mach* utf8_mach;
+    std::string utf8_glyph;
+
+    tsm_utf8_mach_new(&utf8_mach);
 
     %%{
 
@@ -139,8 +164,20 @@ void parse_config(const std::string& filename, Config& out) {
             ws ';'
             ;
 
+        polling_rate = 'polling_rate'
+            ws1 number %{ out.polling_rate = toint(state.match); }
+            ws ';'
+            ;
+
+        map = 'map'
+            ws1 string %{ utf8_glyph = state.match; }
+            ws1 number %{ add_map(out, utf8_glyph, utf8_mach, toint(state.match)); }
+            ws ';'
+            ;
+
         config = 
-            fonts | tiles | tilesize | screensize | fullscreen | connect_to
+            fonts | tiles | tilesize | screensize | fullscreen | 
+            connect_to | polling_rate | map
             ;
 
       main := (ws config ws)+;
@@ -180,6 +217,8 @@ void parse_config(const std::string& filename, Config& out) {
             throw std::runtime_error("Parse error. Unconsumed input: " + std::string(state.p, state.pe));
         }
     }
+
+    tsm_utf8_mach_free(utf8_mach);
 
     std::cout << "Done parsing config." << std::endl;
 

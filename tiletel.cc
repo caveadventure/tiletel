@@ -102,6 +102,10 @@ struct Tiler {
     }
 
 
+    inline uint32_t color_mul(SDL_Surface* screen, const SDL_Color& c, uint8_t r, uint8_t g, uint8_t b) {
+        return map_color(screen, ((r*c.r)/256.0), ((g*c.g)/256.0), ((b*c.b)/256.0), c.a);
+    }
+
     template <typename SCREEN>
     void tile(const SCREEN& self, 
               unsigned int x, unsigned int y, 
@@ -135,17 +139,13 @@ struct Tiler {
 
         fill_rect(self.screen, to_x, to_y, to_w, to_h, bgc);
 
-        //
-        if (ti == 0x6728 || ti == 0x3013 || ti == 0x3001) {
+        // Draw pixel tiles.
 
-            uint32_t pixi;
+        auto tmi = self.tile_mapping.find(ti);
 
-            switch (ti) {
-            case 0x6728: pixi = 116; break;
-            case 0x3013: pixi = 30; break;
-            case 0x3001: pixi = 102; break;
-            default: pixi = 200; break;
-            }
+        if (tmi != self.tile_mapping.end()) {
+
+            uint32_t pixi = tmi->second;
 
             for (unsigned int cwi = 0; cwi < cwidth; ++cwi, ++pixi, to_x += self.tw) {
 
@@ -154,14 +154,15 @@ struct Tiler {
                     return;
 
                 for (const auto& l : tmpi->second.layers) {
-                    T fgp = map_color(self.screen, l.color.r, l.color.g, l.color.b, l.color.a);
+                    T fgp = color_mul(self.screen, l.color, fr, fg, fb);
                     blit_bitmap(self.screen, to_x, to_y, fgp, l.bitmap);
                 }
             }
 
             return;
         }
-        //
+
+        // Or else draw font bitmaps.
 
         auto gi = self.font.glyphs.find(ti);
 
@@ -175,73 +176,6 @@ struct Tiler {
     }
 };
 
-
-
-#if 0
-        if (ti == 0x6728 || ti == 0x3013 || ti == 0x3001) {
-
-            uint32_t ci = (fr << 16) | (fg << 8) | fb;
-
-            SDL_Surface* true_tiles = tiles;
-
-            if (0 && ncolors != 0) {
-
-                palette_t& p = palettes[ci];
-
-                if (p.p == NULL) {
-
-                    p.p = SDL_ConvertSurface(tiles, tiles->format, tiles->flags);
-                    if (p.p == NULL) {
-
-                        throw std::runtime_error("Could not copy tiles for palette change");
-                    }
-
-                    SDL_Color tmp;
-                    tmp.a = 0xFF;
-
-                    tmp.r = fr;
-                    tmp.g = fg;
-                    tmp.b = fb;
-                    //SDL_SetPaletteColors(p.p->format->palette, &tmp, 1, 1);
-
-                    tmp.r /= 2;
-                    tmp.g /= 2;
-                    tmp.b /= 2;
-                    //SDL_SetPaletteColors(p.p->format->palette, &tmp, 2, 1);
-
-                    tmp.r /= 2;
-                    tmp.g /= 2;
-                    tmp.b /= 2;
-                    //SDL_SetPaletteColors(p.p->format->palette, &tmp, 3, 1);
-                }
-
-                true_tiles = p.p;
-            }
-
-            unsigned int tx = 16;
-            unsigned int ty = 5;
-
-            if (ti == 0x3013) {
-                tx = 12;
-                ty = 1;
-            } else if (ti == 0x3001) {
-                tx = 2;
-                ty = 5;
-            }
-
-            if (ty >= tiles_png_h || tx >= tiles_png_w)
-                throw std::runtime_error("Invalid tile offset in tile()");
-
-            SDL_Rect from;
-            from.x = tx * tw;
-            from.y = ty * th;
-            from.w = tw * cwidth;
-            from.h = th;
-
-            SDL_BlitSurface(true_tiles, &from, screen, &to);
-            return;
-        }
-#endif
 
 
 struct Screen {
@@ -276,13 +210,16 @@ struct Screen {
     };
 
     std::unordered_map<uint32_t, indexed_bitmap> tiles;
+
+    const std::unordered_map<uint32_t, uint32_t>& tile_mapping;
     
 
     Screen(const config::Config& cfg) : 
         window(NULL), screen(NULL), 
         tw(cfg.tile_width), th(cfg.tile_height), 
         sw(cfg.screen_width), sh(cfg.screen_height), 
-        done(false)
+        done(false),
+        tile_mapping(cfg.tile_mapping)
     {
 
         SDL_Surface* rtiles = NULL;
@@ -471,11 +408,7 @@ struct Screen {
                         if (tmp == colormap.end())
                             continue;
 
-                        std::cout << "|| " << (int)tmp->second << " " << yy << " " << xx << " " << what.layers.size() << std::endl;
-
                         bdf::bitmap& bitmap = what.layers[tmp->second].bitmap;
-
-                        std::cout << "++ " << bitmap.pitch << std::endl;
 
                         uint8_t& bmbyte = bitmap.bm[(yy * bitmap.pitch) + (xx / 8)];
 
@@ -515,6 +448,7 @@ struct Screen {
                 iz = out.erase(iz);
             } else {
                 
+                /*
                 std::cout << "\n\n[][ " << iz->first << " ][]\n" << std::endl;
                 for (const auto& zzz : ib.layers) {
                     std::cout << "  color " << (int)zzz.color.r << "," 
@@ -522,6 +456,7 @@ struct Screen {
                     print_bitmap(iz->first, zzz.bitmap);
                     std::cout << std::endl;
                 }
+                */
 
                 ++iz;
             }
@@ -1008,12 +943,12 @@ void keypressor(Screen& screen, const SDL_Keysym& k, VTE& vte) {
     tsm_vte_handle_keyboard(vte.vte, tsmsym, key, mods, key);
 }
 
-void multiplexor(Screen& screen, Socket& socket, VTE& vte) {
+void multiplexor(Screen& screen, Socket& socket, VTE& vte, unsigned int polltimeout) {
 
     static std::string buff;
     static std::string rewritten;
 
-    if (!socket.poll(50))
+    if (!socket.poll(polltimeout))
         return;
 
     enum {
@@ -1213,7 +1148,7 @@ int main(int argc, char** argv) {
 
         VTE vte(screen, sock);
 
-        screen.mainloop(std::bind(multiplexor, std::placeholders::_1, std::ref(sock), std::ref(vte)),
+        screen.mainloop(std::bind(multiplexor, std::placeholders::_1, std::ref(sock), std::ref(vte), cfg.polling_rate),
                         std::bind(resizer, std::placeholders::_1, std::ref(sock), std::ref(vte)),
                         std::bind(keypressor, std::placeholders::_1, std::placeholders::_2, std::ref(vte))
             );
