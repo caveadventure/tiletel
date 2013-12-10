@@ -460,15 +460,6 @@ int tsm_vte_set_palette(struct tsm_vte *vte, const char *palette)
 	return 0;
 }
 
-SHL_EXPORT
-void tsm_vte_get_def_attr(struct tsm_vte *vte, struct tsm_screen_attr *out)
-{
-	if (!vte || !out)
-		return;
-
-	memcpy(out, &vte->def_attr, sizeof(*out));
-}
-
 /*
  * Write raw byte-stream to pty.
  * When writing data to the client we must make sure that we send the correct
@@ -1824,7 +1815,7 @@ static void do_action(struct tsm_vte *vte, uint32_t data, int action)
 		case ACTION_OSC_END:
 			break;
 		default:
-			llog_warning(vte, "invalid action %d", action);
+			llog_warn(vte, "invalid action %d", action);
 	}
 }
 
@@ -2207,7 +2198,7 @@ static void parse_data(struct tsm_vte *vte, uint32_t raw)
 		return;
 	}
 
-	llog_warning(vte, "unhandled input %u in state %d", raw, vte->state);
+	llog_warn(vte, "unhandled input %u in state %d", raw, vte->state);
 }
 
 SHL_EXPORT

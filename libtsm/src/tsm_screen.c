@@ -67,6 +67,85 @@
 
 #define LLOG_SUBSYSTEM "tsm_screen"
 
+struct cell {
+	tsm_symbol_t ch;
+	unsigned int width;
+	struct tsm_screen_attr attr;
+	tsm_age_t age;
+};
+
+struct line {
+	struct line *next;
+	struct line *prev;
+
+	unsigned int size;
+	struct cell *cells;
+	uint64_t sb_id;
+	tsm_age_t age;
+};
+
+#define SELECTION_TOP -1
+struct selection_pos {
+	struct line *line;
+	unsigned int x;
+	int y;
+};
+
+struct tsm_screen {
+	size_t ref;
+	llog_submit_t llog;
+	void *llog_data;
+	unsigned int opts;
+	unsigned int flags;
+	struct tsm_symbol_table *sym_table;
+
+	/* default attributes for new cells */
+	struct tsm_screen_attr def_attr;
+
+	/* ageing */
+	tsm_age_t age_cnt;
+	unsigned int age_reset : 1;
+
+	/* current buffer */
+	unsigned int size_x;
+	unsigned int size_y;
+	unsigned int margin_top;
+	unsigned int margin_bottom;
+	unsigned int line_num;
+	struct line **lines;
+	struct line **main_lines;
+	struct line **alt_lines;
+	tsm_age_t age;
+
+	/* scroll-back buffer */
+	unsigned int sb_count;		/* number of lines in sb */
+	struct line *sb_first;		/* first line; was moved first */
+	struct line *sb_last;		/* last line; was moved last*/
+	unsigned int sb_max;		/* max-limit of lines in sb */
+	struct line *sb_pos;		/* current position in sb or NULL */
+	uint64_t sb_last_id;		/* last id given to sb-line */
+
+	/* cursor */
+	unsigned int cursor_x;
+	unsigned int cursor_y;
+
+	/* tab ruler */
+	bool *tab_ruler;
+
+	/* selection */
+	bool sel_active;
+	struct selection_pos sel_start;
+	struct selection_pos sel_end;
+};
+
+static void inc_age(struct tsm_screen *con)
+{
+	if (!++con->age_cnt) {
+		con->age_reset = 1;
+		++con->age_cnt;
+	}
+}
+
 static struct cell *get_cursor_cell(struct tsm_screen *con)
 {
 	unsigned int cur_x, cur_y;
@@ -110,7 +189,7 @@ static void move_cursor(struct tsm_screen *con, unsigned int x, unsigned int y)
 	c->age = con->age_cnt;
 }
 
-void screen_cell_init(struct tsm_screen *con, struct cell *cell)
+static void cell_init(struct tsm_screen *con, struct cell *cell)
 {
 	cell->ch = 0;
 	cell->width = 1;
@@ -142,7 +221,7 @@ static int line_new(struct tsm_screen *con, struct line **out,
 	}
 
 	for (i = 0; i < width; ++i)
-		screen_cell_init(con, &line->cells[i]);
+		cell_init(con, &line->cells[i]);
 
 	*out = line;
 	return 0;
@@ -170,7 +249,7 @@ static int line_resize(struct tsm_screen *con, struct line *line,
 		line->cells = tmp;
 
 		while (line->size < width) {
-			screen_cell_init(con, &line->cells[line->size]);
+			cell_init(con, &line->cells[line->size]);
 			++line->size;
 		}
 	}
@@ -293,7 +372,7 @@ static void screen_scroll_up(struct tsm_screen *con, unsigned int num)
 		} else {
 			cache[i] = con->lines[pos];
 			for (j = 0; j < con->size_x; ++j)
-				screen_cell_init(con, &cache[i]->cells[j]);
+				cell_init(con, &cache[i]->cells[j]);
 		}
 	}
 
@@ -352,7 +431,7 @@ static void screen_scroll_down(struct tsm_screen *con, unsigned int num)
 	for (i = 0; i < num; ++i) {
 		cache[i] = con->lines[con->margin_bottom - i];
 		for (j = 0; j < con->size_x; ++j)
-			screen_cell_init(con, &cache[i]->cells[j]);
+			cell_init(con, &cache[i]->cells[j]);
 	}
 
 	if (num < max) {
@@ -383,7 +462,7 @@ static void screen_write(struct tsm_screen *con, unsigned int x,
 		return;
 
 	if (x >= con->size_x || y >= con->size_y) {
-		llog_warning(con, "writing beyond buffer boundary");
+		llog_warn(con, "writing beyond buffer boundary");
 		return;
 	}
 
@@ -440,7 +519,7 @@ static void screen_erase_region(struct tsm_screen *con,
 			if (protect && line->cells[x_from].attr.protect)
 				continue;
 
-			screen_cell_init(con, &line->cells[x_from]);
+			cell_init(con, &line->cells[x_from]);
 		}
 		x_from = 0;
 	}
@@ -665,7 +744,7 @@ int tsm_screen_resize(struct tsm_screen *con, unsigned int x,
 		}
 	}
 
-	screen_inc_age(con);
+	inc_age(con);
 
 	/* clear expansion/padding area */
 	start = x;
@@ -678,7 +757,7 @@ int tsm_screen_resize(struct tsm_screen *con, unsigned int x,
 			i = start;
 
 		for ( ; i < con->main_lines[j]->size; ++i)
-			screen_cell_init(con, &con->main_lines[j]->cells[i]);
+			cell_init(con, &con->main_lines[j]->cells[i]);
 
 		/* alt-lines never go into SB, only clear visible cells */
 		i = 0;
@@ -686,7 +765,7 @@ int tsm_screen_resize(struct tsm_screen *con, unsigned int x,
 			i = con->size_x;
 
 		for ( ; i < x; ++i)
-			screen_cell_init(con, &con->alt_lines[j]->cells[i]);
+			cell_init(con, &con->alt_lines[j]->cells[i]);
 	}
 
 	/* xterm destroys margins on resize, so do we */
@@ -767,7 +846,7 @@ void tsm_screen_set_max_sb(struct tsm_screen *con,
 	if (!con)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 	/* TODO: more sophisticated ageing */
 	con->age = con->age_cnt;
 
@@ -810,7 +889,7 @@ void tsm_screen_clear_sb(struct tsm_screen *con)
 	if (!con)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 	/* TODO: more sophisticated ageing */
 	con->age = con->age_cnt;
 
@@ -843,7 +922,7 @@ void tsm_screen_sb_up(struct tsm_screen *con, unsigned int num)
 	if (!con || !num)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 	/* TODO: more sophisticated ageing */
 	con->age = con->age_cnt;
 
@@ -867,7 +946,7 @@ void tsm_screen_sb_down(struct tsm_screen *con, unsigned int num)
 	if (!con || !num)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 	/* TODO: more sophisticated ageing */
 	con->age = con->age_cnt;
 
@@ -885,7 +964,7 @@ void tsm_screen_sb_page_up(struct tsm_screen *con, unsigned int num)
 	if (!con || !num)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 	tsm_screen_sb_up(con, num * con->size_y);
 }
 
@@ -895,7 +974,7 @@ void tsm_screen_sb_page_down(struct tsm_screen *con, unsigned int num)
 	if (!con || !num)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 	tsm_screen_sb_down(con, num * con->size_y);
 }
 
@@ -905,7 +984,7 @@ void tsm_screen_sb_reset(struct tsm_screen *con)
 	if (!con)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 	/* TODO: more sophisticated ageing */
 	con->age = con->age_cnt;
 
@@ -930,7 +1009,7 @@ void tsm_screen_reset(struct tsm_screen *con)
 	if (!con)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 	con->age = con->age_cnt;
 
 	con->flags = 0;
@@ -955,7 +1034,7 @@ void tsm_screen_set_flags(struct tsm_screen *con, unsigned int flags)
 	if (!con || !flags)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 
 	old = con->flags;
 	con->flags |= flags;
@@ -984,7 +1063,7 @@ void tsm_screen_reset_flags(struct tsm_screen *con, unsigned int flags)
 	if (!con || !flags)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 
 	old = con->flags;
 	con->flags &= ~flags;
@@ -1074,7 +1153,7 @@ void tsm_screen_write(struct tsm_screen *con, tsm_symbol_t ch,
 	if (!len)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 
 	if (con->cursor_y <= con->margin_bottom ||
 	    con->cursor_y >= con->size_y)
@@ -1104,7 +1183,7 @@ void tsm_screen_newline(struct tsm_screen *con)
 	if (!con)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 
 	tsm_screen_move_down(con, 1, true);
 	tsm_screen_move_line_home(con);
@@ -1116,7 +1195,7 @@ void tsm_screen_scroll_up(struct tsm_screen *con, unsigned int num)
 	if (!con || !num)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 
 	screen_scroll_up(con, num);
 }
@@ -1127,7 +1206,7 @@ void tsm_screen_scroll_down(struct tsm_screen *con, unsigned int num)
 	if (!con || !num)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 
 	screen_scroll_down(con, num);
 }
@@ -1141,7 +1220,7 @@ void tsm_screen_move_to(struct tsm_screen *con, unsigned int x,
 	if (!con)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 
 	if (con->flags & TSM_SCREEN_REL_ORIGIN)
 		last = con->margin_bottom;
@@ -1168,7 +1247,7 @@ void tsm_screen_move_up(struct tsm_screen *con, unsigned int num,
 	if (!con || !num)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 
 	if (con->cursor_y >= con->margin_top)
 		size = con->margin_top;
@@ -1195,7 +1274,7 @@ void tsm_screen_move_down(struct tsm_screen *con, unsigned int num,
 	if (!con || !num)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 
 	if (con->cursor_y <= con->margin_bottom)
 		size = con->margin_bottom + 1;
@@ -1221,7 +1300,7 @@ void tsm_screen_move_left(struct tsm_screen *con, unsigned int num)
 	if (!con || !num)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 
 	if (num > con->size_x)
 		num = con->size_x;
@@ -1242,7 +1321,7 @@ void tsm_screen_move_right(struct tsm_screen *con, unsigned int num)
 	if (!con || !num)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 
 	if (num > con->size_x)
 		num = con->size_x;
@@ -1259,7 +1338,7 @@ void tsm_screen_move_line_end(struct tsm_screen *con)
 	if (!con)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 
 	move_cursor(con, con->size_x - 1, con->cursor_y);
 }
@@ -1270,7 +1349,7 @@ void tsm_screen_move_line_home(struct tsm_screen *con)
 	if (!con)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 
 	move_cursor(con, 0, con->cursor_y);
 }
@@ -1283,7 +1362,7 @@ void tsm_screen_tab_right(struct tsm_screen *con, unsigned int num)
 	if (!con || !num)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 
 	x = con->cursor_x;
 	for (i = 0; i < num; ++i) {
@@ -1313,7 +1392,7 @@ void tsm_screen_tab_left(struct tsm_screen *con, unsigned int num)
 	if (!con || !num)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 
 	x = con->cursor_x;
 	for (i = 0; i < num; ++i) {
@@ -1344,7 +1423,7 @@ void tsm_screen_insert_lines(struct tsm_screen *con, unsigned int num)
 	    con->cursor_y > con->margin_bottom)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 	/* TODO: more sophisticated ageing */
 	con->age = con->age_cnt;
 
@@ -1357,7 +1436,7 @@ void tsm_screen_insert_lines(struct tsm_screen *con, unsigned int num)
 	for (i = 0; i < num; ++i) {
 		cache[i] = con->lines[con->margin_bottom - i];
 		for (j = 0; j < con->size_x; ++j)
-			screen_cell_init(con, &cache[i]->cells[j]);
+			cell_init(con, &cache[i]->cells[j]);
 	}
 
 	if (num < max) {
@@ -1384,7 +1463,7 @@ void tsm_screen_delete_lines(struct tsm_screen *con, unsigned int num)
 	    con->cursor_y > con->margin_bottom)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 	/* TODO: more sophisticated ageing */
 	con->age = con->age_cnt;
 
@@ -1397,7 +1476,7 @@ void tsm_screen_delete_lines(struct tsm_screen *con, unsigned int num)
 	for (i = 0; i < num; ++i) {
 		cache[i] = con->lines[con->cursor_y + i];
 		for (j = 0; j < con->size_x; ++j)
-			screen_cell_init(con, &cache[i]->cells[j]);
+			cell_init(con, &cache[i]->cells[j]);
 	}
 
 	if (num < max) {
@@ -1421,7 +1500,7 @@ void tsm_screen_insert_chars(struct tsm_screen *con, unsigned int num)
 	if (!con || !num || !con->size_y || !con->size_x)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 	/* TODO: more sophisticated ageing */
 	con->age = con->age_cnt;
 
@@ -1442,7 +1521,7 @@ void tsm_screen_insert_chars(struct tsm_screen *con, unsigned int num)
 			mv * sizeof(*cells));
 
 	for (i = 0; i < num; ++i)
-		screen_cell_init(con, &cells[con->cursor_x + i]);
+		cell_init(con, &cells[con->cursor_x + i]);
 }
 
 SHL_EXPORT
@@ -1454,7 +1533,7 @@ void tsm_screen_delete_chars(struct tsm_screen *con, unsigned int num)
 	if (!con || !num || !con->size_y || !con->size_x)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 	/* TODO: more sophisticated ageing */
 	con->age = con->age_cnt;
 
@@ -1475,7 +1554,7 @@ void tsm_screen_delete_chars(struct tsm_screen *con, unsigned int num)
 			mv * sizeof(*cells));
 
 	for (i = 0; i < num; ++i)
-		screen_cell_init(con, &cells[con->cursor_x + mv + i]);
+		cell_init(con, &cells[con->cursor_x + mv + i]);
 }
 
 SHL_EXPORT
@@ -1486,7 +1565,7 @@ void tsm_screen_erase_cursor(struct tsm_screen *con)
 	if (!con)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 
 	if (con->cursor_x >= con->size_x)
 		x = con->size_x - 1;
@@ -1504,7 +1583,7 @@ void tsm_screen_erase_chars(struct tsm_screen *con, unsigned int num)
 	if (!con || !num)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 
 	if (con->cursor_x >= con->size_x)
 		x = con->size_x - 1;
@@ -1524,7 +1603,7 @@ void tsm_screen_erase_cursor_to_end(struct tsm_screen *con,
 	if (!con)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 
 	if (con->cursor_x >= con->size_x)
 		x = con->size_x - 1;
@@ -1542,7 +1621,7 @@ void tsm_screen_erase_home_to_cursor(struct tsm_screen *con,
 	if (!con)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 
 	screen_erase_region(con, 0, con->cursor_y, con->cursor_x,
 			     con->cursor_y, protect);
@@ -1555,7 +1634,7 @@ void tsm_screen_erase_current_line(struct tsm_screen *con,
 	if (!con)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 
 	screen_erase_region(con, 0, con->cursor_y, con->size_x - 1,
 			     con->cursor_y, protect);
@@ -1568,7 +1647,7 @@ void tsm_screen_erase_screen_to_cursor(struct tsm_screen *con,
 	if (!con)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 
 	screen_erase_region(con, 0, 0, con->cursor_x, con->cursor_y, protect);
 }
@@ -1582,7 +1661,7 @@ void tsm_screen_erase_cursor_to_screen(struct tsm_screen *con,
 	if (!con)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 
 	if (con->cursor_x >= con->size_x)
 		x = con->size_x - 1;
@@ -1599,8 +1678,468 @@ void tsm_screen_erase_screen(struct tsm_screen *con, bool protect)
 	if (!con)
 		return;
 
-	screen_inc_age(con);
+	inc_age(con);
 
 	screen_erase_region(con, 0, 0, con->size_x - 1, con->size_y - 1,
 			     protect);
+}
+
+/*
+ * Selection Code
+ * If a running pty-client does not support mouse-tracking extensions, a
+ * terminal can manually mark selected areas if it does mouse-tracking itself.
+ * This tracking is slightly different than the integrated client-tracking:
+ *
+ * Initial state is no-selection. At any time selection_reset() can be called to
+ * clear the selection and go back to initial state.
+ * If the user presses a mouse-button, the terminal can calculate the selected
+ * cell and call selection_start() to notify the terminal that the user started
+ * the selection. While the mouse-button is held down, the terminal should call
+ * selection_target() whenever a mouse-event occurs. This will tell the screen
+ * layer to draw the selection from the initial start up to the last given
+ * target.
+ * Please note that the selection-start cannot be modified by the terminal
+ * during a selection. Instead, the screen-layer automatically moves it along
+ * with any scroll-operations or inserts/deletes. This also means, the terminal
+ * must _not_ cache the start-position itself as it may change under the hood.
+ * This selection takes also care of scrollback-buffer selections and correctly
+ * moves selection state along.
+ *
+ * Please note that this is not the kind of selection that some PTY applications
+ * support. If the client supports the mouse-protocol, then it can also control
+ * a separate screen-selection which is always inside of the actual screen. This
+ * is a totally different selection.
+ */
+
+static void selection_set(struct tsm_screen *con, struct selection_pos *sel,
+			  unsigned int x, unsigned int y)
+{
+	struct line *pos;
+
+	sel->line = NULL;
+	pos = con->sb_pos;
+
+	while (y && pos) {
+		--y;
+		pos = pos->next;
+	}
+
+	if (pos)
+		sel->line = pos;
+
+	sel->x = x;
+	sel->y = y;
+}
+
+SHL_EXPORT
+void tsm_screen_selection_reset(struct tsm_screen *con)
+{
+	if (!con)
+		return;
+
+	inc_age(con);
+	/* TODO: more sophisticated ageing */
+	con->age = con->age_cnt;
+
+	con->sel_active = false;
+}
+
+SHL_EXPORT
+void tsm_screen_selection_start(struct tsm_screen *con,
+				unsigned int posx,
+				unsigned int posy)
+{
+	if (!con)
+		return;
+
+	inc_age(con);
+	/* TODO: more sophisticated ageing */
+	con->age = con->age_cnt;
+
+	con->sel_active = true;
+	selection_set(con, &con->sel_start, posx, posy);
+	memcpy(&con->sel_end, &con->sel_start, sizeof(con->sel_end));
+}
+
+SHL_EXPORT
+void tsm_screen_selection_target(struct tsm_screen *con,
+				 unsigned int posx,
+				 unsigned int posy)
+{
+	if (!con || !con->sel_active)
+		return;
+
+	inc_age(con);
+	/* TODO: more sophisticated ageing */
+	con->age = con->age_cnt;
+
+	selection_set(con, &con->sel_end, posx, posy);
+}
+
+/* TODO: tsm_ucs4_to_utf8 expects UCS4 characters, but a cell contains a
+ * tsm-symbol (which can contain multiple UCS4 chars). Fix this when introducing
+ * support for combining characters. */
+static unsigned int copy_line(struct line *line, char *buf,
+			      unsigned int start, unsigned int len)
+{
+	unsigned int i, end;
+	char *pos = buf;
+
+	end = start + len;
+	for (i = start; i < line->size && i < end; ++i) {
+		if (i < line->size || !line->cells[i].ch)
+			pos += tsm_ucs4_to_utf8(line->cells[i].ch, pos);
+		else
+			pos += tsm_ucs4_to_utf8(' ', pos);
+	}
+
+	return pos - buf;
+}
+
+/* TODO: This beast definitely needs some "beautification", however, it's meant
+ * as a "proof-of-concept" so its enough for now. */
+SHL_EXPORT
+int tsm_screen_selection_copy(struct tsm_screen *con, char **out)
+{
+	unsigned int len, i;
+	struct selection_pos *start, *end;
+	struct line *iter;
+	char *str, *pos;
+
+	if (!con || !out)
+		return -EINVAL;
+
+	if (!con->sel_active)
+		return -ENOENT;
+
+	/* check whether sel_start or sel_end comes first */
+	if (!con->sel_start.line && con->sel_start.y == SELECTION_TOP) {
+		if (!con->sel_end.line && con->sel_end.y == SELECTION_TOP) {
+			str = strdup("");
+			if (!str)
+				return -ENOMEM;
+			*out = str;
+			return 0;
+		}
+		start = &con->sel_start;
+		end = &con->sel_end;
+	} else if (!con->sel_end.line && con->sel_end.y == SELECTION_TOP) {
+		start = &con->sel_end;
+		end = &con->sel_start;
+	} else if (con->sel_start.line && con->sel_end.line) {
+		if (con->sel_start.line->sb_id < con->sel_end.line->sb_id) {
+			start = &con->sel_start;
+			end = &con->sel_end;
+		} else if (con->sel_start.line->sb_id > con->sel_end.line->sb_id) {
+			start = &con->sel_end;
+			end = &con->sel_start;
+		} else if (con->sel_start.x < con->sel_end.x) {
+			start = &con->sel_start;
+			end = &con->sel_end;
+		} else {
+			start = &con->sel_end;
+			end = &con->sel_start;
+		}
+	} else if (con->sel_start.line) {
+		start = &con->sel_start;
+		end = &con->sel_end;
+	} else if (con->sel_end.line) {
+		start = &con->sel_end;
+		end = &con->sel_start;
+	} else if (con->sel_start.y < con->sel_end.y) {
+		start = &con->sel_start;
+		end = &con->sel_end;
+	} else if (con->sel_start.y > con->sel_end.y) {
+		start = &con->sel_end;
+		end = &con->sel_start;
+	} else if (con->sel_start.x < con->sel_end.x) {
+		start = &con->sel_start;
+		end = &con->sel_end;
+	} else {
+		start = &con->sel_end;
+		end = &con->sel_start;
+	}
+
+	/* calculate size of buffer */
+	len = 0;
+	iter = start->line;
+	if (!iter && start->y == SELECTION_TOP)
+		iter = con->sb_first;
+
+	while (iter) {
+		if (iter == start->line && iter == end->line) {
+			if (iter->size > start->x) {
+				if (iter->size > end->x)
+					len += end->x - start->x + 1;
+				else
+					len += iter->size - start->x;
+			}
+			break;
+		} else if (iter == start->line) {
+			if (iter->size > start->x)
+				len += iter->size - start->x;
+		} else if (iter == end->line) {
+			if (iter->size > end->x)
+				len += end->x + 1;
+			else
+				len += iter->size;
+			break;
+		} else {
+			len += iter->size;
+		}
+
+		++len;
+		iter = iter->next;
+	}
+
+	if (!end->line) {
+		if (start->line || start->y == SELECTION_TOP)
+			i = 0;
+		else
+			i = start->y;
+		for ( ; i < con->size_y; ++i) {
+			if (!start->line && start->y == i && end->y == i) {
+				if (con->size_x > start->x) {
+					if (con->size_x > end->x)
+						len += end->x - start->x + 1;
+					else
+						len += con->size_x - start->x;
+				}
+				break;
+			} else if (!start->line && start->y == i) {
+				if (con->size_x > start->x)
+					len += con->size_x - start->x;
+			} else if (end->y == i) {
+				if (con->size_x > end->x)
+					len += end->x + 1;
+				else
+					len += con->size_x;
+				break;
+			} else {
+				len += con->size_x;
+			}
+
+			++len;
+		}
+	}
+
+	/* allocate buffer */
+	len *= 4;
+	++len;
+	str = malloc(len);
+	if (!str)
+		return -ENOMEM;
+	pos = str;
+
+	/* copy data into buffer */
+	iter = start->line;
+	if (!iter && start->y == SELECTION_TOP)
+		iter = con->sb_first;
+
+	while (iter) {
+		if (iter == start->line && iter == end->line) {
+			if (iter->size > start->x) {
+				if (iter->size > end->x)
+					len = end->x - start->x + 1;
+				else
+					len = iter->size - start->x;
+				pos += copy_line(iter, pos, start->x, len);
+			}
+			break;
+		} else if (iter == start->line) {
+			if (iter->size > start->x)
+				pos += copy_line(iter, pos, start->x,
+						 iter->size - start->x);
+		} else if (iter == end->line) {
+			if (iter->size > end->x)
+				len = end->x + 1;
+			else
+				len = iter->size;
+			pos += copy_line(iter, pos, 0, len);
+			break;
+		} else {
+			pos += copy_line(iter, pos, 0, iter->size);
+		}
+
+		*pos++ = '\n';
+		iter = iter->next;
+	}
+
+	if (!end->line) {
+		if (start->line || start->y == SELECTION_TOP)
+			i = 0;
+		else
+			i = start->y;
+		for ( ; i < con->size_y; ++i) {
+			iter = con->lines[i];
+			if (!start->line && start->y == i && end->y == i) {
+				if (con->size_x > start->x) {
+					if (con->size_x > end->x)
+						len = end->x - start->x + 1;
+					else
+						len = con->size_x - start->x;
+					pos += copy_line(iter, pos, start->x, len);
+				}
+				break;
+			} else if (!start->line && start->y == i) {
+				if (con->size_x > start->x)
+					pos += copy_line(iter, pos, start->x,
+							 con->size_x - start->x);
+			} else if (end->y == i) {
+				if (con->size_x > end->x)
+					len = end->x + 1;
+				else
+					len = con->size_x;
+				pos += copy_line(iter, pos, 0, len);
+				break;
+			} else {
+				pos += copy_line(iter, pos, 0, con->size_x);
+			}
+
+			*pos++ = '\n';
+		}
+	}
+
+	/* return buffer */
+	*pos = 0;
+	*out = str;
+	return pos - str;
+}
+
+SHL_EXPORT
+tsm_age_t tsm_screen_draw(struct tsm_screen *con, tsm_screen_draw_cb draw_cb,
+			  void *data)
+{
+	unsigned int cur_x, cur_y;
+	unsigned int i, j, k;
+	struct line *iter, *line = NULL;
+	struct cell *cell;
+	struct tsm_screen_attr attr;
+	int ret, warned = 0;
+	const uint32_t *ch;
+	size_t len;
+	bool in_sel = false, sel_start = false, sel_end = false;
+	bool was_sel = false;
+	tsm_age_t age;
+
+	if (!con || !draw_cb)
+		return 0;
+
+	cur_x = con->cursor_x;
+	if (con->cursor_x >= con->size_x)
+		cur_x = con->size_x - 1;
+	cur_y = con->cursor_y;
+	if (con->cursor_y >= con->size_y)
+		cur_y = con->size_y - 1;
+
+	/* push each character into rendering pipeline */
+
+	iter = con->sb_pos;
+	k = 0;
+
+	if (con->sel_active) {
+		if (!con->sel_start.line && con->sel_start.y == SELECTION_TOP)
+			in_sel = !in_sel;
+		if (!con->sel_end.line && con->sel_end.y == SELECTION_TOP)
+			in_sel = !in_sel;
+
+		if (con->sel_start.line &&
+		    (!iter || con->sel_start.line->sb_id < iter->sb_id))
+			in_sel = !in_sel;
+		if (con->sel_end.line &&
+		    (!iter || con->sel_end.line->sb_id < iter->sb_id))
+			in_sel = !in_sel;
+	}
+
+	for (i = 0; i < con->size_y; ++i) {
+		if (iter) {
+			line = iter;
+			iter = iter->next;
+		} else {
+			line = con->lines[k];
+			k++;
+		}
+
+		if (con->sel_active) {
+			if (con->sel_start.line == line ||
+			    (!con->sel_start.line &&
+			     con->sel_start.y == k - 1))
+				sel_start = true;
+			else
+				sel_start = false;
+			if (con->sel_end.line == line ||
+			    (!con->sel_end.line &&
+			     con->sel_end.y == k - 1))
+				sel_end = true;
+			else
+				sel_end = false;
+
+			was_sel = false;
+		}
+
+		for (j = 0; j < con->size_x; ++j) {
+			cell = &line->cells[j];
+			memcpy(&attr, &cell->attr, sizeof(attr));
+
+			if (con->sel_active) {
+				if (sel_start &&
+				    j == con->sel_start.x) {
+					was_sel = in_sel;
+					in_sel = !in_sel;
+				}
+				if (sel_end &&
+				    j == con->sel_end.x) {
+					was_sel = in_sel;
+					in_sel = !in_sel;
+				}
+			}
+
+			if (k == cur_y + 1 && j == cur_x &&
+			    !(con->flags & TSM_SCREEN_HIDE_CURSOR))
+				attr.inverse = !attr.inverse;
+
+			/* TODO: do some more sophisticated inverse here. When
+			 * INVERSE mode is set, we should instead just select
+			 * inverse colors instead of switching background and
+			 * foreground */
+			if (con->flags & TSM_SCREEN_INVERSE)
+				attr.inverse = !attr.inverse;
+
+			if (in_sel || was_sel) {
+				was_sel = false;
+				attr.inverse = !attr.inverse;
+			}
+
+			if (con->age_reset) {
+				age = 0;
+			} else {
+				age = cell->age;
+				if (line->age > age)
+					age = line->age;
+				if (con->age > age)
+					age = con->age;
+			}
+
+			ch = tsm_symbol_get(con->sym_table, &cell->ch, &len);
+			if (cell->ch == ' ' || cell->ch == 0)
+				len = 0;
+			ret = draw_cb(con, cell->ch, ch, len, cell->width,
+				      j, i, &attr, age, data);
+			if (ret && warned++ < 3) {
+				llog_debug(con,
+					   "cannot draw glyph at %ux%u via text-renderer",
+					   j, i);
+				if (warned == 3)
+					llog_debug(con,
+						   "suppressing further warnings during this rendering round");
+			}
+		}
+	}
+
+	if (con->age_reset) {
+		con->age_reset = 0;
+		return 0;
+	} else {
+		return con->age_cnt;
+	}
 }
