@@ -294,7 +294,7 @@ static uint8_t color_palette_solarized_white[COLOR_NUM][3] = {
 };
 
 static uint8_t color_palette_tango[COLOR_NUM][3] = {
-        [COLOR_BLACK]         = { 0x1F, 0x25, 0x27 }, /* black */
+        [COLOR_BLACK]         = { 0x00, 0x09, 0x07 }, /* black */
         [COLOR_RED]           = { 0xCC, 0x00, 0x00 }, /* red */
         [COLOR_GREEN]         = { 0x4E, 0x9A, 0x06 }, /* green */
         [COLOR_YELLOW]        = { 0xC4, 0xA0, 0x00 }, /* yellow */
