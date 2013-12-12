@@ -1,0 +1,18 @@
+
+This software package includes:
+
+The GNU Unifont, which is licensed under the GPL: https://gnu.org/licenses/gpl.html
+
+Terminus Font, which is licensed under the SIL Open Font License, Version 1.1: http://scripts.sil.org/OFL
+
+
+The executable binaries are linked with the excellent libtsm, written by David Herrmann and Ran Benita.
+Please see 'LICESING_libtsm' for further details on the libtsm license.
+
+For some platforms the executable binaries are linked with libSDL, version 2.
+libSDL v.2 is licensed under the zlib license: http://www.gzip.org/zlib/zlib_license.html
+
+
+The rest of the code is in the public domain: http://unlicense.org/
+
+
