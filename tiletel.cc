@@ -229,7 +229,7 @@ struct Screen {
         window(NULL), screen(NULL), 
         tw(cfg.tile_width), th(cfg.tile_height), 
         sw(cfg.screen_width), sh(cfg.screen_height), 
-        done(false),
+        done(false), 
         tile_mapping(cfg.tile_mapping)
     {
 
@@ -244,7 +244,7 @@ struct Screen {
                                       SDL_WINDOWPOS_UNDEFINED,
                                       SDL_WINDOWPOS_UNDEFINED,
                                       tw*sw, th*sh,
-                                      SDL_WINDOW_RESIZABLE|SDL_WINDOW_SHOWN|
+                                      SDL_WINDOW_RESIZABLE|SDL_WINDOW_HIDDEN|
                                       (cfg.fullscreen ? SDL_WINDOW_FULLSCREEN : 0));
 
             if (window == NULL)
@@ -487,6 +487,8 @@ struct Screen {
     template <typename FUNC_R, typename FUNC_K>
     void handle_event(const SDL_Event& e, FUNC_R resizer, FUNC_K keypress) {
 
+        std::cout << "EVENT!  " << (int)e.type << std::endl;
+
         switch (e.type) {
 
         case SDL_QUIT:
@@ -494,6 +496,12 @@ struct Screen {
             break;
 
         case SDL_WINDOWEVENT:
+            std::cout << "WINDOW EVENT! " << (int)e.window.event << " " << e.window.data1 << "/" << e.window.data2 << std::endl;
+            if (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
+                std::cout << "SIZECHANGED!" << std::endl;
+            int w, h;
+            SDL_GetWindowSize(window, &w, &h);
+            std::cout << "XXX " << w << " " << h << std::endl;
             if (e.window.event == SDL_WINDOWEVENT_RESIZED) {
 
                 sw = e.window.data1/tw;
@@ -502,6 +510,7 @@ struct Screen {
                 screen = SDL_GetWindowSurface(window);
 
                 resizer(*this);
+
             }
             break;
 
@@ -524,6 +533,10 @@ struct Screen {
     template <typename FUNC, typename FUNC_R, typename FUNC_K>
     void mainloop(FUNC f, FUNC_R resizer, FUNC_K keypress) {
 
+        // This mind-numbing, pants-on-head retarded idiocy is because SDL 
+        // doesn't play nice with tiling window managers.
+        bool first = false;
+
         SDL_Event event;
 
         while (!done) {
@@ -535,6 +548,11 @@ struct Screen {
 
             while (SDL_PollEvent(&event)) {
                 handle_event(event, resizer, keypress);
+            }
+
+            if (!first) {
+                SDL_ShowWindow(window);
+                first = true;
             }
         }
     }
