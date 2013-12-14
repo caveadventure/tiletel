@@ -58,14 +58,12 @@ inline void add_map(Config& out, const std::string& utf8_glyph, tsm_utf8_mach* u
     tsm_utf8_mach_reset(utf8_mach);
 
     for (char c : utf8_glyph) {
-        std::cout << "? " << (int)c << std::endl;
 
         int x = tsm_utf8_mach_feed(utf8_mach, c);
 
         if (x == TSM_UTF8_ACCEPT || x == TSM_UTF8_REJECT) {
             uint32_t ucs = tsm_utf8_mach_get(utf8_mach);
             out.tile_mapping[ucs] = tile;
-            std::cout << " map " << ucs << " " << tile << std::endl;
             return;
         }
     }
@@ -225,14 +223,6 @@ void parse_config(const std::string& filename, Config& out) {
 
     tsm_utf8_mach_free(utf8_mach);
 
-    std::cout << "Done parsing config." << std::endl;
-
-    for (const auto& f : out.fonts)
-        std::cout << "font " << f << std::endl;
-
-    std::cout << "tilesize " << out.tile_width << " " << out.tile_height << std::endl;
-    std::cout << "screensize " << out.screen_width << " " << out.screen_height << std::endl;
-    std::cout << "fullscreen " << out.fullscreen << std::endl;
 }
 
 }

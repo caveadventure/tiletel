@@ -267,9 +267,6 @@ struct Screen {
             if (rtiles == NULL)
                 throw std::runtime_error("Failed to load tiles bitmap: '" + cfg.tiles + "'");
 
-            std::cout << "!!! " << (int)rtiles->format->BitsPerPixel 
-                      << " " << (int)rtiles->format->BytesPerPixel << std::endl;
-
             surface_to_indexed(rtiles, tw, th, tiles);
 
             SDL_FreeSurface(rtiles);
@@ -365,8 +362,6 @@ struct Screen {
 
         std::unordered_map<uint32_t, size_t> colormap;
 
-        std::cout << "NCOLORS " << palette->ncolors << std::endl;
-
         for (int ci = 0; ci < palette->ncolors; ++ci) {
 
             const SDL_Color& color = palette->colors[ci];
@@ -382,8 +377,6 @@ struct Screen {
             colormap[colorhash] = base.layers.size();
             base.layers.resize(base.layers.size() + 1);
             auto& l = base.layers.back();
-
-            std::cout << " ---> " << base.layers.size() << std::endl;
 
             l.color = color;
             l.bitmap.w = tw;
@@ -487,8 +480,6 @@ struct Screen {
     template <typename FUNC_R, typename FUNC_K>
     void handle_event(const SDL_Event& e, FUNC_R resizer, FUNC_K keypress) {
 
-        std::cout << "EVENT!  " << (int)e.type << std::endl;
-
         switch (e.type) {
 
         case SDL_QUIT:
@@ -496,12 +487,6 @@ struct Screen {
             break;
 
         case SDL_WINDOWEVENT:
-            std::cout << "WINDOW EVENT! " << (int)e.window.event << " " << e.window.data1 << "/" << e.window.data2 << std::endl;
-            if (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
-                std::cout << "SIZECHANGED!" << std::endl;
-            int w, h;
-            SDL_GetWindowSize(window, &w, &h);
-            std::cout << "XXX " << w << " " << h << std::endl;
             if (e.window.event == SDL_WINDOWEVENT_RESIZED) {
 
                 sw = e.window.data1/tw;
@@ -845,7 +830,6 @@ unsigned char doshift(unsigned char c) {
 
 void keypressor(Screen& screen, const SDL_Keysym& k, VTE& vte) {
 
-    //std::cout << "| " << (int)k.sym << " " << (int)k.mod << std::endl;
     unsigned char key = (k.sym > 127 ? '?' : k.sym);
 
     if (key == 0)
@@ -1003,8 +987,6 @@ void multiplexor(Screen& screen, Socket& socket, VTE& vte, unsigned int polltime
             screen.done = true;
             return;
         }
-
-        //std::cout << "> " << buff << std::endl;
 
         rewritten.reserve(buff.size());
 

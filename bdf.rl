@@ -236,8 +236,6 @@ void parse_bdf(const std::string& filename, Font& out) {
         }
     }
 
-    std::cout << "Done parsing font." << std::endl;
-
     for (auto& i : out.glyphs) {
         auto& g = i.second;
             
