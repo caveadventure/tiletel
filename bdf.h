@@ -2325,8 +2325,6 @@ case 186:
         }
     }
 
-    std::cout << "Done parsing font." << std::endl;
-
     for (auto& i : out.glyphs) {
         auto& g = i.second;
             
