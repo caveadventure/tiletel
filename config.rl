@@ -178,9 +178,11 @@ void parse_config(const std::string& filename, Config& out) {
             ws ';'
             ;
 
+        disable_tiles = 'tiles' ws1 'off' %{ out.tiles.clear(); } ws ';';
+
         config = 
             fonts | tiles | tilesize | screensize | fullscreen | 
-            connect_to | polling_rate | palette | map
+            connect_to | polling_rate | palette | map | disable_tiles
             ;
 
       main := (ws config ws)+;

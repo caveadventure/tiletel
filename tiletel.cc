@@ -156,26 +156,28 @@ struct Tiler {
         fill_rect(self.screen, to_x, to_y, to_w, to_h, bgc);
 
         // Draw pixel tiles.
+        if (!self.tiles.empty()) {
 
-        auto tmi = self.tile_mapping.find(ti);
+            auto tmi = self.tile_mapping.find(ti);
 
-        if (tmi != self.tile_mapping.end()) {
+            if (tmi != self.tile_mapping.end()) {
 
-            uint32_t pixi = tmi->second;
+                uint32_t pixi = tmi->second;
 
-            for (unsigned int cwi = 0; cwi < cwidth; ++cwi, ++pixi, to_x += self.tw) {
+                for (unsigned int cwi = 0; cwi < cwidth; ++cwi, ++pixi, to_x += self.tw) {
 
-                auto tmpi = self.tiles.find(pixi);
-                if (tmpi == self.tiles.end())
-                    return;
+                    auto tmpi = self.tiles.find(pixi);
+                    if (tmpi == self.tiles.end())
+                        return;
 
-                for (const auto& l : tmpi->second.layers) {
-                    T fgp = color_mul(self.screen, l.color, fr, fg, fb);
-                    blit_bitmap(self.screen, to_x, to_y, fgp, l.bitmap);
+                    for (const auto& l : tmpi->second.layers) {
+                        T fgp = color_mul(self.screen, l.color, fr, fg, fb);
+                        blit_bitmap(self.screen, to_x, to_y, fgp, l.bitmap);
+                    }
                 }
-            }
 
-            return;
+                return;
+            }
         }
 
         // Or else draw font bitmaps.
@@ -264,18 +266,21 @@ struct Screen {
                 throw std::runtime_error("Window surface has unsupported bytes per pixel. (Wanted 4)");
             }
 
-            if (IMG_Init(IMG_INIT_PNG) == 0)
-                throw std::runtime_error("Could not init SDL_Image");
+            if (!cfg.tiles.empty()) {
 
-            rtiles = IMG_Load(cfg.tiles.c_str());
+                if (IMG_Init(IMG_INIT_PNG) == 0)
+                    throw std::runtime_error("Could not init SDL_Image");
 
-            if (rtiles == NULL)
-                throw std::runtime_error("Failed to load tiles bitmap: '" + cfg.tiles + "'");
+                rtiles = IMG_Load(cfg.tiles.c_str());
 
-            surface_to_indexed(rtiles, tw, th, tiles);
+                if (rtiles == NULL)
+                    throw std::runtime_error("Failed to load tiles bitmap: '" + cfg.tiles + "'");
 
-            SDL_FreeSurface(rtiles);
-            rtiles = NULL;
+                surface_to_indexed(rtiles, tw, th, tiles);
+
+                SDL_FreeSurface(rtiles);
+                rtiles = NULL;
+            }
 
             auto fi = cfg.fonts.rbegin();
 
@@ -1116,6 +1121,8 @@ int main(int argc, char** argv) {
         std::string host;
         unsigned int port = 0;
 
+        bool notiles = false;
+
         for (int ai = 1; ai < argc; ++ai) {
             std::string q(argv[ai]);
             
@@ -1128,6 +1135,10 @@ int main(int argc, char** argv) {
 
                 configfile = argv[ai+1];
                 ++ai;
+
+            } else if (q == "-n" || q == "--notiles") {
+
+                notiles = true;
 
             } else if (!did_host) {
                 host = q;
@@ -1159,6 +1170,10 @@ int main(int argc, char** argv) {
             std::cerr << "No host to connect to." << std::endl;
             usage(argv[0]);
             return 1;
+        }
+
+        if (notiles) {
+            cfg.tiles.clear();
         }
 
         Screen screen(cfg);
