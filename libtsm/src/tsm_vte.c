@@ -293,29 +293,6 @@ static uint8_t color_palette_solarized_white[COLOR_NUM][3] = {
 	[COLOR_BACKGROUND]    = { 238, 232, 213 }, /* light grey */
 };
 
-static uint8_t color_palette_tango[COLOR_NUM][3] = {
-        [COLOR_BLACK]         = { 0x00, 0x09, 0x07 }, /* black */
-        [COLOR_RED]           = { 0xCC, 0x00, 0x00 }, /* red */
-        [COLOR_GREEN]         = { 0x4E, 0x9A, 0x06 }, /* green */
-        [COLOR_YELLOW]        = { 0xC4, 0xA0, 0x00 }, /* yellow */
-        [COLOR_BLUE]          = { 0x34, 0x65, 0xA4 }, /* blue */
-        [COLOR_MAGENTA]       = { 0x75, 0x50, 0x7B }, /* magenta */
-        [COLOR_CYAN]          = { 0x06, 0x98, 0x9A }, /* cyan */
-        [COLOR_LIGHT_GREY]    = { 0xD3, 0xD7, 0xCF }, /* light grey */
-        [COLOR_DARK_GREY]     = { 0x55, 0x57, 0x53 }, /* dark grey */
-        [COLOR_LIGHT_RED]     = { 0xEF, 0x29, 0x29 }, /* light red */
-        [COLOR_LIGHT_GREEN]   = { 0x8A, 0xE2, 0x34 }, /* light green */
-        [COLOR_LIGHT_YELLOW]  = { 0xFC, 0xE9, 0x4F }, /* light yellow */
-        [COLOR_LIGHT_BLUE]    = { 0x72, 0x9F, 0xCF }, /* light blue */
-        [COLOR_LIGHT_MAGENTA] = { 0xAD, 0x7F, 0xA8 }, /* light magenta */
-        [COLOR_LIGHT_CYAN]    = { 0x34, 0xE2, 0xE2 }, /* light cyan */
-        [COLOR_WHITE]         = { 0xEE, 0xEE, 0xEC }, /* white */
-
-        [COLOR_FOREGROUND]    = { 0xD3, 0xD7, 0xCF }, /* black */
-        [COLOR_BACKGROUND]    = { 0x00, 0x00, 0x00 }, /* light grey */
-};
-
-
 static uint8_t (*get_palette(struct tsm_vte *vte))[3]
 {
 	if (!vte->palette_name)
@@ -327,8 +304,6 @@ static uint8_t (*get_palette(struct tsm_vte *vte))[3]
 		return color_palette_solarized_black;
 	if (!strcmp(vte->palette_name, "solarized-white"))
 		return color_palette_solarized_white;
-	if (!strcmp(vte->palette_name, "tango"))
-		return color_palette_tango;
 
 	return color_palette;
 }
@@ -483,6 +458,15 @@ int tsm_vte_set_palette(struct tsm_vte *vte, const char *palette)
 	tsm_screen_erase_screen(vte->con, false);
 
 	return 0;
+}
+
+SHL_EXPORT
+void tsm_vte_get_def_attr(struct tsm_vte *vte, struct tsm_screen_attr *out)
+{
+	if (!vte || !out)
+		return;
+
+	memcpy(out, &vte->def_attr, sizeof(*out));
 }
 
 /*
@@ -1840,7 +1824,7 @@ static void do_action(struct tsm_vte *vte, uint32_t data, int action)
 		case ACTION_OSC_END:
 			break;
 		default:
-			llog_warn(vte, "invalid action %d", action);
+			llog_warning(vte, "invalid action %d", action);
 	}
 }
 
@@ -2223,7 +2207,7 @@ static void parse_data(struct tsm_vte *vte, uint32_t raw)
 		return;
 	}
 
-	llog_warn(vte, "unhandled input %u in state %d", raw, vte->state);
+	llog_warning(vte, "unhandled input %u in state %d", raw, vte->state);
 }
 
 SHL_EXPORT

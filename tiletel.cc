@@ -124,6 +124,7 @@ struct Tiler {
               uint8_t fr, uint8_t fg, uint8_t fb,
               uint8_t br, uint8_t bg, uint8_t bb) {
 
+        std::cout << "| " << x << "," << y << " " << ti << ":" << cwidth << " {" << inverse << "}" << std::endl;
 
         if (ti == 0xfffd) {
             std::cout << "PRINTING " << ti << std::endl;
