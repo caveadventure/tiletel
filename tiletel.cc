@@ -124,8 +124,6 @@ struct Tiler {
               uint8_t fr, uint8_t fg, uint8_t fb,
               uint8_t br, uint8_t bg, uint8_t bb) {
 
-        std::cout << "| " << x << "," << y << " " << ti << ":" << cwidth << " {" << inverse << "}" << std::endl;
-
         if (ti == 0xfffd) {
             std::cout << "PRINTING " << ti << std::endl;
             return;
@@ -729,6 +727,18 @@ struct VTE {
     void set_palette(const std::string& palette) {
         tsm_vte_set_palette(vte, palette.c_str());
     }
+
+    void set_cursor(bool onoff) {
+        unsigned int flags = tsm_screen_get_flags(screen);
+        
+        if (!onoff) {
+            flags |= TSM_SCREEN_HIDE_CURSOR;
+        } else {
+            flags &= ~(TSM_SCREEN_HIDE_CURSOR);
+        }
+
+        tsm_screen_set_flags(screen, flags);
+    }
 };
 
 
@@ -1010,6 +1020,9 @@ void multiplexor(Screen& screen, Socket& socket, VTE& vte, unsigned int polltime
                 if (c == '\xFF') {
                     telnetstate = IAC;
 
+                } else if (c == '\0') {
+                    // Nothing, skip random null bytes that telnetd likes to send for no reason.
+
                 } else {
                     rewritten += c;
                 }
@@ -1186,6 +1199,8 @@ int main(int argc, char** argv) {
         if (cfg.palette.size() > 0) {
             vte.set_palette(cfg.palette);
         }
+
+        vte.set_cursor(cfg.cursor);
 
         screen.mainloop(std::bind(multiplexor, std::placeholders::_1, std::ref(sock), std::ref(vte), cfg.polling_rate),
                         std::bind(resizer, std::placeholders::_1, std::ref(sock), std::ref(vte)),

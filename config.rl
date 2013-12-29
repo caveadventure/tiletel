@@ -180,9 +180,13 @@ void parse_config(const std::string& filename, Config& out) {
 
         disable_tiles = 'tiles' ws1 'off' %{ out.tiles.clear(); } ws ';';
 
+        cursor = 'cursor' ws1 ('on'  %{ out.cursor = true;  } |
+                               'off' %{ out.cursor = false; }) 
+                 ws ';';
+
         config = 
             fonts | tiles | tilesize | screensize | fullscreen | 
-            connect_to | polling_rate | palette | map | disable_tiles
+            connect_to | polling_rate | palette | map | disable_tiles | cursor
             ;
 
       main := (ws config ws)+;

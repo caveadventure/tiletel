@@ -11,6 +11,7 @@ struct Config {
     size_t screen_width;
     size_t screen_height;
     bool fullscreen;
+    bool cursor;
 
     unsigned int polling_rate;
 
@@ -23,7 +24,7 @@ struct Config {
     Config() : 
         tile_width(16), tile_height(16),
         screen_width(80), screen_height(25),
-        fullscreen(true), polling_rate(50),
+        fullscreen(true), cursor(true), polling_rate(50),
         port(23)
         {}
 };
