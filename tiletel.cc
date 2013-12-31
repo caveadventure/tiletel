@@ -19,6 +19,7 @@
 #include <sys/time.h>
 
 
+/*
 struct bm {
     struct timeval b;
     std::string msg;
@@ -33,7 +34,7 @@ struct bm {
         std::cout << msg << ": " << ((double)a-(double)q)/1e6 << std::endl;
     }
 };
-
+*/
 
 template <typename T>
 struct Tiler {
@@ -1110,7 +1111,7 @@ void multiplexor(Screen& screen, Socket& socket, VTE& vte, unsigned int polltime
             break;
     }
 
-    bm _x("redraw");
+    //bm _x("redraw");
 
     vte.feed(rewritten);
     vte.redraw();
