@@ -905,37 +905,33 @@ void keypressor(Screen& screen, const SDL_Keysym& k, VTE& vte) {
             tsmsym = XKB_KEY_Up;
             break;
 
-/*
-        case XKB_KEY_KP_Enter:
-        case XKB_KEY_KP_Page_Up:
-        case XKB_KEY_KP_Page_Down:
-        case XKB_KEY_KP_Up:
-        case XKB_KEY_KP_Down:
-        case XKB_KEY_KP_Right:
-        case XKB_KEY_KP_Left:
-        case XKB_KEY_KP_Insert:
-        case XKB_KEY_KP_0:
-        case XKB_KEY_KP_1:
-        case XKB_KEY_KP_2:
-        case XKB_KEY_KP_3:
-        case XKB_KEY_KP_4:
-        case XKB_KEY_KP_5:
-        case XKB_KEY_KP_6:
-        case XKB_KEY_KP_7:
-        case XKB_KEY_KP_8:
-        case XKB_KEY_KP_9:
-
-        case XKB_KEY_KP_Subtract:
-        case XKB_KEY_KP_Separator:
-        case XKB_KEY_KP_Delete:
-        case XKB_KEY_KP_Decimal:
-        case XKB_KEY_KP_Equal:
-        case XKB_KEY_KP_Divide:
-        case XKB_KEY_KP_Multiply:
-        case XKB_KEY_KP_Add:
-        case XKB_KEY_KP_Home:
-        case XKB_KEY_KP_End:
-*/
+        case SDLK_KP_1:
+            tsmsym = XKB_KEY_Select;
+            break;
+        case SDLK_KP_2:
+            tsmsym = XKB_KEY_KP_Down;
+            break;
+        case SDLK_KP_3:
+            tsmsym = XKB_KEY_KP_Page_Down;
+            break;
+        case SDLK_KP_4:
+            tsmsym = XKB_KEY_KP_Left;
+            break;
+        case SDLK_KP_5:
+            tsmsym = XKB_KEY_period;
+            break;
+        case SDLK_KP_6:
+            tsmsym = XKB_KEY_KP_Right;
+            break;
+        case SDLK_KP_7:
+            tsmsym = XKB_KEY_Find;
+            break;
+        case SDLK_KP_8:
+            tsmsym = XKB_KEY_KP_Up;
+            break;
+        case SDLK_KP_9:
+            tsmsym = XKB_KEY_KP_Page_Up;
+            break;
 
         case SDLK_F1:
             tsmsym = XKB_KEY_F1;
