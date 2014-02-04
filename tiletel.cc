@@ -510,15 +510,25 @@ struct Screen {
             break;
 
         case SDL_KEYDOWN:
-            //std::cout << "KEYPRESS: " << e.key.keysym.sym << std::endl;
-            keypress(*this, e.key.keysym);
+        {
+            auto c = e.key.keysym.sym;
+            if (c < ' ' || c > '~') {
+                keypress(*this, e.key.keysym);
+            }
             break;
+        }
 
-            /*
         case SDL_TEXTINPUT:
-            keypress(*this, SDL_Keysym(), e.text.text);
+        {
+            const char* text = e.text.text;
+            if (text[0] != '\0' && text[1] == '\0' && text[0] >= ' ' && text[0] <= '~') {
+                SDL_Keysym sym;
+                sym.sym = text[0];
+                sym.mod = 0;
+                keypress(*this, sym);
+            }
             break;
-            */
+        }
 
         default:
             break;
