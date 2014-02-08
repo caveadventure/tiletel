@@ -11,6 +11,11 @@
 #include "SDL2/SDL_net.h"
 
 #include "libtsm/src/libtsm.h"
+
+extern "C" {
+#include "libtsm/src/libtsm_int.h"
+}
+
 #include "external/xkbcommon-keysyms.h"
 
 #include "bdf.h"
@@ -230,7 +235,6 @@ struct Screen {
     std::unordered_map<uint32_t, indexed_bitmap> tiles;
 
     const std::unordered_map<uint32_t, uint32_t>& tile_mapping;
-    
 
     Screen(const config::Config& cfg) : 
         window(NULL), screen(NULL), 
@@ -487,8 +491,8 @@ struct Screen {
     }
 
 
-    template <typename FUNC_R, typename FUNC_K>
-    void handle_event(const SDL_Event& e, FUNC_R resizer, FUNC_K keypress) {
+    template <typename FUNC_R, typename FUNC_K, typename FUNC_T>
+    void handle_event(const SDL_Event& e, FUNC_R resizer, FUNC_K keypress, FUNC_T textinput) {
 
         switch (e.type) {
 
@@ -511,8 +515,8 @@ struct Screen {
 
         case SDL_KEYDOWN:
         {
-            auto c = e.key.keysym.sym;
-            if (c < ' ' || c > '~') {
+            auto& c = e.key.keysym;
+            if (c.mod & ~(KMOD_SHIFT) || c.sym < ' ' || c.sym > '~') {
                 keypress(*this, e.key.keysym);
             }
             break;
@@ -521,11 +525,10 @@ struct Screen {
         case SDL_TEXTINPUT:
         {
             const char* text = e.text.text;
-            if (text[0] != '\0' && text[1] == '\0' && text[0] >= ' ' && text[0] <= '~') {
-                SDL_Keysym sym;
-                sym.sym = text[0];
-                sym.mod = 0;
-                keypress(*this, sym);
+            bool notmine = (text[0] != '\0' && text[1] == '\0' && (text[0] < ' ' || text[0] > '~'));
+
+            if (!notmine) {
+                textinput(*this, text);
             }
             break;
         }
@@ -535,8 +538,8 @@ struct Screen {
         }
     }
 
-    template <typename FUNC, typename FUNC_R, typename FUNC_K>
-    void mainloop(FUNC f, FUNC_R resizer, FUNC_K keypress) {
+    template <typename FUNC, typename FUNC_R, typename FUNC_K, typename FUNC_T>
+    void mainloop(FUNC f, FUNC_R resizer, FUNC_K keypress, FUNC_T textinput) {
 
         // This mind-numbing, pants-on-head retarded idiocy is because SDL 
         // doesn't play nice with tiling window managers.
@@ -552,7 +555,7 @@ struct Screen {
                 throw std::runtime_error("Failed to update window surface");
 
             while (SDL_PollEvent(&event)) {
-                handle_event(event, resizer, keypress);
+                handle_event(event, resizer, keypress, textinput);
             }
 
             if (!first) {
@@ -859,6 +862,30 @@ unsigned char doshift(unsigned char c) {
     return map[c];
 }
 
+void textor(Screen& screen, const std::string& utf, VTE& vte) {
+
+    static tsm_utf8_mach* utf8_mach = NULL;
+
+    if (utf8_mach == NULL) {
+        tsm_utf8_mach_new(&utf8_mach);
+    }
+
+    tsm_utf8_mach_reset(utf8_mach);
+
+    for (char c : utf) {
+
+        int x = tsm_utf8_mach_feed(utf8_mach, c);
+
+        if (x == TSM_UTF8_ACCEPT) {
+
+            uint32_t glyph = tsm_utf8_mach_get(utf8_mach);
+            tsm_vte_handle_keyboard(vte.vte, XKB_KEY_NoSymbol, glyph, 0, glyph);
+
+        } else if (x == TSM_UTF8_REJECT) {
+            return;
+        }
+    }
+}
 
 void keypressor(Screen& screen, const SDL_Keysym& k, VTE& vte) {
 
@@ -1211,7 +1238,8 @@ int main(int argc, char** argv) {
 
         screen.mainloop(std::bind(multiplexor, std::placeholders::_1, std::ref(sock), std::ref(vte), cfg.polling_rate),
                         std::bind(resizer, std::placeholders::_1, std::ref(sock), std::ref(vte)),
-                        std::bind(keypressor, std::placeholders::_1, std::placeholders::_2, std::ref(vte))
+                        std::bind(keypressor, std::placeholders::_1, std::placeholders::_2, std::ref(vte)),
+                        std::bind(textor, std::placeholders::_1, std::placeholders::_2, std::ref(vte))
             );
 
     } catch (std::exception& e) {
