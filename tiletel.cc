@@ -131,7 +131,6 @@ struct Tiler {
               uint8_t br, uint8_t bg, uint8_t bb) {
 
         if (ti == 0xfffd) {
-            std::cout << "PRINTING " << ti << std::endl;
             return;
         }
 
