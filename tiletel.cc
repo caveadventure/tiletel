@@ -653,9 +653,6 @@ struct Socket {
 
         out.swap(decompressor.result());
 
-        if (out.size() < 256)
-            std::cout << "[" << out << "]" << std::endl;
-
         std::cout << "leftover " << compression_leftover.size() << std::endl;
     }
 
@@ -676,6 +673,11 @@ struct Socket {
     }
 
     bool poll(unsigned int wait = 100) {
+
+        if (compression_leftover.size() > 0) {
+            return true;
+        }
+
         return SDLNet_CheckSockets(poller, wait);
     }
 };
