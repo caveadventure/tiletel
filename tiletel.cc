@@ -641,9 +641,6 @@ struct Socket {
 
         std::cout << "start " << out.size() << std::endl;
 
-        if (out.size() < 50)
-            std::cout << "[" << out << "]" << std::endl;
-
         bool done = decompressor.start(out, compression_leftover);
 
         while (!done) {
@@ -655,6 +652,9 @@ struct Socket {
         }
 
         out.swap(decompressor.result());
+
+        if (out.size() < 256)
+            std::cout << "[" << out << "]" << std::endl;
 
         std::cout << "leftover " << compression_leftover.size() << std::endl;
     }
