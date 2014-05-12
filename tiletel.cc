@@ -23,6 +23,8 @@ extern "C" {
 
 #include <sys/time.h>
 
+#include "lz77.h"
+
 
 /*
 struct bm {
@@ -565,12 +567,17 @@ struct Screen {
     }
 };
 
+
 struct Socket {
 
     TCPsocket socket;
     SDLNet_SocketSet poller;
 
-    Socket(const std::string& host, unsigned int port) : socket(NULL) {
+    bool compression;
+    std::string compression_leftover;
+    lz77::decompress_t decompressor;
+
+    Socket(const std::string& host, unsigned int port) : socket(NULL), compression(false) {
 
         try {
 
@@ -610,7 +617,7 @@ struct Socket {
         SDLNet_Quit();
     }
 
-    void recv(std::string& out) {
+    void recv_raw(std::string& out) {
 
         int i = SDLNet_TCP_Recv(socket, (char*)out.data(), out.size());
 
@@ -618,6 +625,38 @@ struct Socket {
             throw std::runtime_error("Error receiving data");
 
         out.resize(i);
+    }
+
+    void recv(std::string& out) {
+
+        if (compression_leftover.size() > 0) {
+            out.swap(compression_leftover);
+
+        } else {
+            recv_raw(out);
+        }
+
+        if (!compression)
+            return;
+
+        std::cout << "start " << out.size() << std::endl;
+
+        if (out.size() < 50)
+            std::cout << "[" << out << "]" << std::endl;
+
+        bool done = decompressor.start(out, compression_leftover);
+
+        while (!done) {
+
+            recv_raw(out);
+
+            std::cout << "more " << out.size() << std::endl;
+            done = decompressor.more(out, compression_leftover);
+        }
+
+        out.swap(decompressor.result());
+
+        std::cout << "leftover " << compression_leftover.size() << std::endl;
     }
 
     void send(const std::string& in) {
@@ -806,6 +845,17 @@ void telnet_wont(Socket& socket, char c) {
 
     tmp += '\xFF';
     tmp += '\xFC';
+    tmp += c;
+
+    socket.send(tmp);
+}
+
+void telnet_do(Socket& socket, char c) {
+    std::string tmp;
+    tmp.reserve(3);
+
+    tmp += '\xFF';
+    tmp += '\xFD';
     tmp += c;
 
     socket.send(tmp);
@@ -1013,7 +1063,7 @@ void keypressor(Screen& screen, const SDL_Keysym& k, VTE& vte) {
     tsm_vte_handle_keyboard(vte.vte, tsmsym, key, mods, key);
 }
 
-void multiplexor(Screen& screen, Socket& socket, VTE& vte, unsigned int polltimeout) {
+void multiplexor(Screen& screen, Socket& socket, VTE& vte, unsigned int polltimeout, bool enable_compression) {
 
     static std::string buff;
     static std::string rewritten;
@@ -1035,6 +1085,7 @@ void multiplexor(Screen& screen, Socket& socket, VTE& vte, unsigned int polltime
     while (1) {
 
         buff.resize(16*1024);
+
         socket.recv(buff);
 
         if (buff.empty()) {
@@ -1094,6 +1145,9 @@ void multiplexor(Screen& screen, Socket& socket, VTE& vte, unsigned int polltime
 
                 } else if (c == '\x18') {
                     send_terminal_type(socket, "xterm");
+
+                } else if (c == '\x57') {
+                    socket.compression = true;
                 }
                 break;
 
@@ -1116,6 +1170,12 @@ void multiplexor(Screen& screen, Socket& socket, VTE& vte, unsigned int polltime
                 break;
 
             case WILL:
+
+                if (c == '\x57' && enable_compression) {
+                    // Compression.
+                    telnet_do(socket, c);
+                }
+
                 telnetstate = STREAM;
                 break;
 
@@ -1235,7 +1295,8 @@ int main(int argc, char** argv) {
 
         vte.set_cursor(cfg.cursor);
 
-        screen.mainloop(std::bind(multiplexor, std::placeholders::_1, std::ref(sock), std::ref(vte), cfg.polling_rate),
+        screen.mainloop(std::bind(multiplexor, std::placeholders::_1, std::ref(sock), std::ref(vte), 
+                                  cfg.polling_rate, cfg.compression),
                         std::bind(resizer, std::placeholders::_1, std::ref(sock), std::ref(vte)),
                         std::bind(keypressor, std::placeholders::_1, std::placeholders::_2, std::ref(vte)),
                         std::bind(textor, std::placeholders::_1, std::placeholders::_2, std::ref(vte))

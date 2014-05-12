@@ -184,8 +184,12 @@ void parse_config(const std::string& filename, Config& out) {
                                'off' %{ out.cursor = false; }) 
                  ws ';';
 
+        compression = 'compression' ws1 ('on'  %{ out.compression = true;  } |
+                                         'off' %{ out.compression = false; })
+                      ws ';';
+
         config = 
-            fonts | tiles | tilesize | screensize | fullscreen | 
+            fonts | tiles | tilesize | screensize | fullscreen | compression |
             connect_to | polling_rate | palette | map | disable_tiles | cursor
             ;
 

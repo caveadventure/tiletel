@@ -21,11 +21,13 @@ struct Config {
     std::string palette;
     std::unordered_map<uint32_t, uint32_t> tile_mapping;
 
+    bool compression;
+
     Config() : 
         tile_width(16), tile_height(16),
         screen_width(80), screen_height(25),
         fullscreen(true), cursor(true), polling_rate(50),
-        port(23)
+        port(23), compression(true)
         {}
 };
 
