@@ -639,21 +639,16 @@ struct Socket {
         if (!compression)
             return;
 
-        std::cout << "start " << out.size() << std::endl;
-
         bool done = decompressor.start(out, compression_leftover);
 
         while (!done) {
 
             recv_raw(out);
 
-            std::cout << "more " << out.size() << std::endl;
             done = decompressor.more(out, compression_leftover);
         }
 
         out.swap(decompressor.result());
-
-        std::cout << "leftover " << compression_leftover.size() << std::endl;
     }
 
     void send(const std::string& in) {
