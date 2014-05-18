@@ -639,13 +639,13 @@ struct Socket {
         if (!compression)
             return;
 
-        bool done = decompressor.start(out, compression_leftover);
+        bool done = decompressor.feed(out, compression_leftover);
 
         while (!done) {
 
             recv_raw(out);
 
-            done = decompressor.more(out, compression_leftover);
+            done = decompressor.feed(out, compression_leftover);
         }
 
         out.swap(decompressor.result());
