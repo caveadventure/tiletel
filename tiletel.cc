@@ -1143,7 +1143,7 @@ void multiplexor(Screen& screen, Socket& socket, VTE& vte, unsigned int polltime
                 } else if (c == '\x18') {
                     send_terminal_type(socket, "xterm");
 
-                } else if (c == '\x57') {
+                } else if (c == '\x54') {
                     socket.compression = true;
                 }
                 break;
@@ -1168,7 +1168,7 @@ void multiplexor(Screen& screen, Socket& socket, VTE& vte, unsigned int polltime
 
             case WILL:
 
-                if (c == '\x57' && enable_compression) {
+                if (c == '\x54' && enable_compression) {
                     // Compression.
                     telnet_do(socket, c);
                 }
