@@ -631,6 +631,7 @@ struct Socket {
 
         if (compression_leftover.size() > 0) {
             out.swap(compression_leftover);
+            compression_leftover.clear();
 
         } else {
             recv_raw(out);
