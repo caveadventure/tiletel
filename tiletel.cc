@@ -617,7 +617,7 @@ struct Socket {
         SDLNet_Quit();
     }
 
-    void recv_raw(std::string& out) {
+    bool recv_raw(std::string& out) {
 
         int i = SDLNet_TCP_Recv(socket, (char*)out.data(), out.size());
 
@@ -625,31 +625,40 @@ struct Socket {
             throw std::runtime_error("Error receiving data");
 
         out.resize(i);
+
+        if (out.empty())
+            return false;
+
+        return true;
     }
 
-    void recv(std::string& out) {
+    bool recv(std::string& out) {
+
+        bool ret = true;
 
         if (compression_leftover.size() > 0) {
             out.swap(compression_leftover);
             compression_leftover.clear();
 
         } else {
-            recv_raw(out);
+            ret = recv_raw(out);
         }
 
         if (!compression)
-            return;
+            return ret;
 
         bool done = decompressor.feed(out, compression_leftover);
 
         while (!done) {
 
-            recv_raw(out);
+            ret = recv_raw(out);
 
             done = decompressor.feed(out, compression_leftover);
         }
 
         out.swap(decompressor.result());
+
+        return ret;
     }
 
     void send(const std::string& in) {
@@ -1084,9 +1093,8 @@ void multiplexor(Screen& screen, Socket& socket, VTE& vte, unsigned int polltime
 
         buff.resize(16*1024);
 
-        socket.recv(buff);
+        if (!socket.recv(buff)) {
 
-        if (buff.empty()) {
             screen.done = true;
             return;
         }
