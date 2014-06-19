@@ -293,6 +293,27 @@ static uint8_t color_palette_solarized_white[COLOR_NUM][3] = {
 	[COLOR_BACKGROUND]    = { 238, 232, 213 }, /* light grey */
 };
 
+static uint8_t color_palette_athame[COLOR_NUM][3] = {
+	[COLOR_BLACK]         = {   0,   0,   0 }, /* black */
+	[COLOR_RED]           = { 166,  64,  64 }, /* red */
+	[COLOR_GREEN]         = {  64, 166,  64 }, /* green */
+	[COLOR_YELLOW]        = { 166, 166,  64 }, /* yellow */
+	[COLOR_BLUE]          = {  15,  15, 166 }, /* blue */
+	[COLOR_MAGENTA]       = { 166,  64, 166 }, /* magenta */
+	[COLOR_CYAN]          = {  64, 166, 166 }, /* cyan */
+	[COLOR_LIGHT_GREY]    = { 177, 177, 177 }, /* light grey */
+	[COLOR_DARK_GREY]     = {  64,  64,  64 }, /* dark grey */
+	[COLOR_LIGHT_RED]     = { 205,   0,   0 }, /* light red */
+	[COLOR_LIGHT_GREEN]   = {   0, 235,   0 }, /* light green */
+	[COLOR_LIGHT_YELLOW]  = { 235, 235,   0 }, /* light yellow */
+	[COLOR_LIGHT_BLUE]    = {   0,   0, 255 }, /* light blue */
+	[COLOR_LIGHT_MAGENTA] = { 235,   0, 235 }, /* light magenta */
+	[COLOR_LIGHT_CYAN]    = {   0, 205, 235 }, /* light cyan */
+	[COLOR_WHITE]         = { 235, 235, 235 }, /* white */
+	[COLOR_FOREGROUND]    = { 229, 229, 229 }, /* light grey */
+	[COLOR_BACKGROUND]    = {   0,   0,   0 }, /* black */
+};
+
 static uint8_t (*get_palette(struct tsm_vte *vte))[3]
 {
 	if (!vte->palette_name)
@@ -304,6 +325,8 @@ static uint8_t (*get_palette(struct tsm_vte *vte))[3]
 		return color_palette_solarized_black;
 	if (!strcmp(vte->palette_name, "solarized-white"))
 		return color_palette_solarized_white;
+        if (!strcmp(vte->palette_name, "athame"))
+                return color_palette_athame;
 
 	return color_palette;
 }
