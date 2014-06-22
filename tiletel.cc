@@ -804,7 +804,7 @@ struct VTE {
 void send_resize(Screen& screen, Socket& socket) {
 
     std::string tmp;
-    tmp.reserve(7);
+    tmp.reserve(9);
 
     tmp += '\xFF';
     tmp += '\xFA';
@@ -822,7 +822,7 @@ void send_resize(Screen& screen, Socket& socket) {
 void send_terminal_type(Socket& socket, const std::string& type) {
 
     std::string tmp;
-    tmp.reserve(3+type.size());
+    tmp.reserve(6+type.size());
 
     tmp += '\xFF';
     tmp += '\xFA';
