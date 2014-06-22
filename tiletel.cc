@@ -492,8 +492,8 @@ struct Screen {
     }
 
 
-    template <typename FUNC_R, typename FUNC_K, typename FUNC_T>
-    void handle_event(const SDL_Event& e, FUNC_R resizer, FUNC_K keypress, FUNC_T textinput) {
+    template <typename PROTOCOL>
+    void handle_event(const SDL_Event& e, PROTOCOL& proto) {
 
         switch (e.type) {
 
@@ -509,7 +509,7 @@ struct Screen {
 
                 screen = SDL_GetWindowSurface(window);
 
-                resizer(*this);
+                proto.resizer(sw, sh);
 
             }
             break;
@@ -518,7 +518,7 @@ struct Screen {
         {
             auto& c = e.key.keysym;
             if (c.mod & ~(KMOD_SHIFT) || c.sym < ' ' || c.sym > '~') {
-                keypress(*this, e.key.keysym);
+                proto.keypressor(e.key.keysym);
             }
             break;
         }
@@ -529,7 +529,7 @@ struct Screen {
             bool notmine = (text[0] != '\0' && text[1] == '\0' && (text[0] < ' ' || text[0] > '~'));
 
             if (!notmine) {
-                textinput(*this, text);
+                proto.textor(text);
             }
             break;
         }
@@ -539,8 +539,8 @@ struct Screen {
         }
     }
 
-    template <typename FUNC, typename FUNC_R, typename FUNC_K, typename FUNC_T>
-    void mainloop(FUNC f, FUNC_R resizer, FUNC_K keypress, FUNC_T textinput) {
+    template <typename PROTOCOL>
+    void mainloop(PROTOCOL& proto) {
 
         // This mind-numbing, pants-on-head retarded idiocy is because SDL 
         // doesn't play nice with tiling window managers.
@@ -550,13 +550,13 @@ struct Screen {
 
         while (!done) {
 
-            f(*this);
+            done = proto.multiplexor();
 
             if (SDL_UpdateWindowSurface(window) < 0)
                 throw std::runtime_error("Failed to update window surface");
 
             while (SDL_PollEvent(&event)) {
-                handle_event(event, resizer, keypress, textinput);
+                handle_event(event, proto);
             }
 
             if (!first) {
@@ -695,9 +695,10 @@ void tsm_logger_cb(void* data, const char* file, int line, const char* func, con
     fprintf(stderr, "\n");
 }
 
+template <typename SOCKET>
 void tsm_term_writer_cb(struct tsm_vte* vte, const char* u8, size_t len, void* data) {
 
-    Socket* socket = (Socket*)data;
+    SOCKET* socket = (SOCKET*)data;
 
     socket->send(u8, len);
 }
@@ -731,15 +732,19 @@ int tsm_drawer_cb(struct tsm_screen* screen, uint32_t id, const uint32_t* ch, si
     return 0;
 }
 
+template <typename SOCKET>
 struct VTE {
 
     tsm_screen* screen;
     tsm_vte* vte;
 
     Screen& draw;
-    Socket& socket;
+    SOCKET& socket;
+
+    unsigned int sw;
+    unsigned int sh;
     
-    VTE(Screen& d, Socket& s) : screen(NULL), vte(NULL), draw(d), socket(s)
+    VTE(Screen& d, SOCKET& s) : screen(NULL), vte(NULL), draw(d), socket(s), sw(d.sw), sh(d.sh)
     {
 
         try {
@@ -747,10 +752,10 @@ struct VTE {
             if (tsm_screen_new(&screen, tsm_logger_cb, NULL) < 0)
                 throw std::runtime_error("Could not init tsm_screen");
 
-            if (tsm_vte_new(&vte, screen, tsm_term_writer_cb, &socket, tsm_logger_cb, NULL) < 0)
+            if (tsm_vte_new(&vte, screen, tsm_term_writer_cb<SOCKET>, &socket, tsm_logger_cb, NULL) < 0)
                 throw std::runtime_error("Could not init tsm_vte");
 
-            if (tsm_screen_resize(screen, draw.sw, draw.sh) < 0)
+            if (tsm_screen_resize(screen, sw, sh) < 0)
                 throw std::runtime_error("Could not resize screen");
 
         } catch (...) {
@@ -766,9 +771,12 @@ struct VTE {
         tsm_screen_unref(screen);
     }
 
-    void resize() {
+    void resize(unsigned int _sw, unsigned int _sh) {
 
-        if (tsm_screen_resize(screen, draw.sw, draw.sh) < 0)
+        sw = _sw;
+        sh = _sh;
+
+        if (tsm_screen_resize(screen, sw, sh) < 0)
             throw std::runtime_error("Could not resize screen");
     }
 
@@ -801,422 +809,453 @@ struct VTE {
 };
 
 
-void send_resize(Screen& screen, Socket& socket) {
+template <typename SOCKET>
+struct Protocol_Base {
 
-    std::string tmp;
-    tmp.reserve(9);
+    VTE<SOCKET>& vte;
 
-    tmp += '\xFF';
-    tmp += '\xFA';
-    tmp += '\x1F';
-    tmp += (unsigned char)(screen.sw >> 8);
-    tmp += (unsigned char)(screen.sw & 0xFF);
-    tmp += (unsigned char)(screen.sh >> 8);
-    tmp += (unsigned char)(screen.sh & 0xFF);
-    tmp += '\xFF';
-    tmp += '\xF0';
+    Protocol_Base(VTE<SOCKET>& _vte) : vte(_vte) {}
 
-    socket.send(tmp);
-}
 
-void send_terminal_type(Socket& socket, const std::string& type) {
+    static unsigned char doshift(unsigned char c) {
+        static bool init = false;
+        static unsigned char map[128];
 
-    std::string tmp;
-    tmp.reserve(6+type.size());
+        if (c >= 128)
+            return c;
 
-    tmp += '\xFF';
-    tmp += '\xFA';
-    tmp += '\x18';
-    tmp += '\x00';
-    tmp += type;
-    tmp += '\xFF';
-    tmp += '\xF0';
+        if (!init) {
+            for (unsigned char i = 0; i < 128; ++i) {
+                map[i] = i;
+            }
 
-    socket.send(tmp);
-}
+            for (unsigned char i = 'a'; i <= 'z'; ++i) {
+                map[i] = i - 'a' + 'A';
+            }
 
-void telnet_will(Socket& socket, char c) {
-    std::string tmp;
-    tmp.reserve(3);
+            map['`'] = '~';
+            map['1'] = '!';
+            map['2'] = '@';
+            map['3'] = '#';
+            map['4'] = '$';
+            map['5'] = '%';
+            map['6'] = '^';
+            map['7'] = '&';
+            map['8'] = '*';
+            map['9'] = '(';
+            map['0'] = ')';
+            map['-'] = '_';
+            map['='] = '+';
+            map['['] = '{';
+            map[']'] = '}';
+            map['\\'] = '|';
+            map[';'] = ':';
+            map['\''] = '"';
+            map[','] = '<';
+            map['.'] = '>';
+            map['/'] = '?';
 
-    tmp += '\xFF';
-    tmp += '\xFB';
-    tmp += c;
-
-    socket.send(tmp);
-}
-
-void telnet_wont(Socket& socket, char c) {
-    std::string tmp;
-    tmp.reserve(3);
-
-    tmp += '\xFF';
-    tmp += '\xFC';
-    tmp += c;
-
-    socket.send(tmp);
-}
-
-void telnet_do(Socket& socket, char c) {
-    std::string tmp;
-    tmp.reserve(3);
-
-    tmp += '\xFF';
-    tmp += '\xFD';
-    tmp += c;
-
-    socket.send(tmp);
-}
-
-void resizer(Screen& screen, Socket& socket, VTE& vte) {
-
-    send_resize(screen, socket);
-    vte.resize();
-}
-
-unsigned char doshift(unsigned char c) {
-    static bool init = false;
-    static unsigned char map[128];
-
-    if (c >= 128)
-        return c;
-
-    if (!init) {
-        for (unsigned char i = 0; i < 128; ++i) {
-            map[i] = i;
+            init = true;
         }
 
-        for (unsigned char i = 'a'; i <= 'z'; ++i) {
-            map[i] = i - 'a' + 'A';
+        return map[c];
+    }
+
+    // Feeds keyboard text input to the terminal emulator.
+    void textor(const std::string& utf) {
+
+        static tsm_utf8_mach* utf8_mach = NULL;
+
+        if (utf8_mach == NULL) {
+            tsm_utf8_mach_new(&utf8_mach);
         }
 
-        map['`'] = '~';
-        map['1'] = '!';
-        map['2'] = '@';
-        map['3'] = '#';
-        map['4'] = '$';
-        map['5'] = '%';
-        map['6'] = '^';
-        map['7'] = '&';
-        map['8'] = '*';
-        map['9'] = '(';
-        map['0'] = ')';
-        map['-'] = '_';
-        map['='] = '+';
-        map['['] = '{';
-        map[']'] = '}';
-        map['\\'] = '|';
-        map[';'] = ':';
-        map['\''] = '"';
-        map[','] = '<';
-        map['.'] = '>';
-        map['/'] = '?';
+        tsm_utf8_mach_reset(utf8_mach);
 
-        init = true;
+        for (char c : utf) {
+
+            int x = tsm_utf8_mach_feed(utf8_mach, c);
+
+            if (x == TSM_UTF8_ACCEPT) {
+
+                uint32_t glyph = tsm_utf8_mach_get(utf8_mach);
+                tsm_vte_handle_keyboard(vte.vte, XKB_KEY_NoSymbol, glyph, 0, glyph);
+
+            } else if (x == TSM_UTF8_REJECT) {
+                return;
+            }
+        }
     }
 
-    return map[c];
-}
+    // Feeds raw keypress data to the terminal emulator.
+    void keypressor(const SDL_Keysym& k) {
 
-void textor(Screen& screen, const std::string& utf, VTE& vte) {
+        unsigned char key = (k.sym > 127 ? '?' : k.sym);
 
-    static tsm_utf8_mach* utf8_mach = NULL;
-
-    if (utf8_mach == NULL) {
-        tsm_utf8_mach_new(&utf8_mach);
-    }
-
-    tsm_utf8_mach_reset(utf8_mach);
-
-    for (char c : utf) {
-
-        int x = tsm_utf8_mach_feed(utf8_mach, c);
-
-        if (x == TSM_UTF8_ACCEPT) {
-
-            uint32_t glyph = tsm_utf8_mach_get(utf8_mach);
-            tsm_vte_handle_keyboard(vte.vte, XKB_KEY_NoSymbol, glyph, 0, glyph);
-
-        } else if (x == TSM_UTF8_REJECT) {
+        if (key == 0)
             return;
+
+        unsigned int mods = 0;
+
+        if (k.mod & KMOD_SHIFT) {
+            key = doshift(key);
+            mods |= TSM_SHIFT_MASK;
         }
-    }
-}
 
-void keypressor(Screen& screen, const SDL_Keysym& k, VTE& vte) {
+        if (k.mod & KMOD_ALT) {
+            mods |= TSM_ALT_MASK;
+        }
 
-    unsigned char key = (k.sym > 127 ? '?' : k.sym);
+        if (k.mod & KMOD_CTRL) {
+            mods |= TSM_CONTROL_MASK;
+        }
 
-    if (key == 0)
-        return;
+        uint32_t tsmsym = XKB_KEY_NoSymbol;
 
-    unsigned int mods = 0;
-
-    if (k.mod & KMOD_SHIFT) {
-        key = doshift(key);
-        mods |= TSM_SHIFT_MASK;
-    }
-
-    if (k.mod & KMOD_ALT) {
-        mods |= TSM_ALT_MASK;
-    }
-
-    if (k.mod & KMOD_CTRL) {
-        mods |= TSM_CONTROL_MASK;
-    }
-
-    uint32_t tsmsym = XKB_KEY_NoSymbol;
-
-    if (k.sym & SDLK_SCANCODE_MASK) {
+        if (k.sym & SDLK_SCANCODE_MASK) {
         
-        switch (k.sym) {
-        case SDLK_INSERT:
-            tsmsym = XKB_KEY_Insert;
-            break;
-        case SDLK_HOME:
-            tsmsym = XKB_KEY_Home;
-            break;
-        case SDLK_PAGEUP:
-            tsmsym = XKB_KEY_Page_Up;
-            break;
-        case SDLK_END:
-            tsmsym = XKB_KEY_End;
-            break;
-        case SDLK_PAGEDOWN:
-            tsmsym = XKB_KEY_Page_Down;
-            break;
-        case SDLK_RIGHT:
-            tsmsym = XKB_KEY_Right;
-            break;
-        case SDLK_LEFT:
-            tsmsym = XKB_KEY_Left;
-            break;
-        case SDLK_DOWN:
-            tsmsym = XKB_KEY_Down;
-            break;
-        case SDLK_UP:
-            tsmsym = XKB_KEY_Up;
-            break;
-
-        case SDLK_KP_1:
-            tsmsym = XKB_KEY_Select;
-            break;
-        case SDLK_KP_2:
-            tsmsym = XKB_KEY_KP_Down;
-            break;
-        case SDLK_KP_3:
-            tsmsym = XKB_KEY_KP_Page_Down;
-            break;
-        case SDLK_KP_4:
-            tsmsym = XKB_KEY_KP_Left;
-            break;
-        case SDLK_KP_5:
-            tsmsym = XKB_KEY_period;
-            break;
-        case SDLK_KP_6:
-            tsmsym = XKB_KEY_KP_Right;
-            break;
-        case SDLK_KP_7:
-            tsmsym = XKB_KEY_Find;
-            break;
-        case SDLK_KP_8:
-            tsmsym = XKB_KEY_KP_Up;
-            break;
-        case SDLK_KP_9:
-            tsmsym = XKB_KEY_KP_Page_Up;
-            break;
-
-        case SDLK_F1:
-            tsmsym = XKB_KEY_F1;
-            break;
-        case SDLK_F2:
-            tsmsym = XKB_KEY_F2;
-            break;
-        case SDLK_F3:
-            tsmsym = XKB_KEY_F3;
-            break;
-        case SDLK_F4:
-            tsmsym = XKB_KEY_F4;
-            break;
-        case SDLK_F5:
-            tsmsym = XKB_KEY_F5;
-            break;
-        case SDLK_F6:
-            tsmsym = XKB_KEY_F6;
-            break;
-        case SDLK_F7:
-            tsmsym = XKB_KEY_F7;
-            break;
-        case SDLK_F8:
-            tsmsym = XKB_KEY_F8;
-            break;
-        case SDLK_F9:
-            tsmsym = XKB_KEY_F9;
-            break;
-        case SDLK_F10:
-            tsmsym = XKB_KEY_F10;
-            break;
-        case SDLK_F11:
-            tsmsym = XKB_KEY_F11;
-            break;
-        case SDLK_F12:
-            tsmsym = XKB_KEY_F12;
-            break;
-        default:
-            return;
-        }
-    }
-
-    tsm_vte_handle_keyboard(vte.vte, tsmsym, key, mods, key);
-}
-
-void multiplexor(Screen& screen, Socket& socket, VTE& vte, unsigned int polltimeout, bool enable_compression) {
-
-    static std::string buff;
-    static std::string rewritten;
-
-    if (!socket.poll(polltimeout))
-        return;
-
-    enum {
-        STREAM,
-        IAC,
-        DO,
-        DONT,
-        WONT,
-        WILL,
-        SB,
-        SB_IAC
-    } telnetstate = STREAM;
-
-    while (1) {
-
-        buff.resize(16*1024);
-
-        if (!socket.recv(buff)) {
-
-            screen.done = true;
-            return;
-        }
-
-        rewritten.reserve(buff.size());
-
-        for (char c : buff) {
-
-            switch (telnetstate) {
-
-            case STREAM:
-
-                if (c == '\xFF') {
-                    telnetstate = IAC;
-
-                } else if (c == '\0') {
-                    // Nothing, skip random null bytes that telnetd likes to send for no reason.
-
-                } else {
-                    rewritten += c;
-                }
+            switch (k.sym) {
+            case SDLK_INSERT:
+                tsmsym = XKB_KEY_Insert;
+                break;
+            case SDLK_HOME:
+                tsmsym = XKB_KEY_Home;
+                break;
+            case SDLK_PAGEUP:
+                tsmsym = XKB_KEY_Page_Up;
+                break;
+            case SDLK_END:
+                tsmsym = XKB_KEY_End;
+                break;
+            case SDLK_PAGEDOWN:
+                tsmsym = XKB_KEY_Page_Down;
+                break;
+            case SDLK_RIGHT:
+                tsmsym = XKB_KEY_Right;
+                break;
+            case SDLK_LEFT:
+                tsmsym = XKB_KEY_Left;
+                break;
+            case SDLK_DOWN:
+                tsmsym = XKB_KEY_Down;
+                break;
+            case SDLK_UP:
+                tsmsym = XKB_KEY_Up;
                 break;
 
-            case IAC:
-
-                if (c == '\xFF') {
-                    rewritten += c;
-                    telnetstate = STREAM;
-
-                } else if (c == '\xFA') {
-                    telnetstate = SB;
-
-                } else if (c == '\xFE') {
-                    telnetstate = DONT;
-
-                } else if (c == '\xFD') {
-                    telnetstate = DO;
-
-                } else if (c == '\xFC') {
-                    telnetstate = WONT;
-
-                } else if (c == '\xFB') {
-                    telnetstate = WILL;
-
-                } else {
-                    telnetstate = STREAM;
-                }
+            case SDLK_KP_1:
+                tsmsym = XKB_KEY_Select;
+                break;
+            case SDLK_KP_2:
+                tsmsym = XKB_KEY_KP_Down;
+                break;
+            case SDLK_KP_3:
+                tsmsym = XKB_KEY_KP_Page_Down;
+                break;
+            case SDLK_KP_4:
+                tsmsym = XKB_KEY_KP_Left;
+                break;
+            case SDLK_KP_5:
+                tsmsym = XKB_KEY_period;
+                break;
+            case SDLK_KP_6:
+                tsmsym = XKB_KEY_KP_Right;
+                break;
+            case SDLK_KP_7:
+                tsmsym = XKB_KEY_Find;
+                break;
+            case SDLK_KP_8:
+                tsmsym = XKB_KEY_KP_Up;
+                break;
+            case SDLK_KP_9:
+                tsmsym = XKB_KEY_KP_Page_Up;
                 break;
 
-            case SB:
-
-                if (c == '\xFF') {
-                    telnetstate = SB_IAC;
-
-                } else if (c == '\x18') {
-                    send_terminal_type(socket, "xterm");
-
-                } else if (c == '\x54') {
-                    socket.compression = true;
-                }
+            case SDLK_F1:
+                tsmsym = XKB_KEY_F1;
                 break;
-
-            case SB_IAC:
-
-                if (c == '\xF0') {
-                    telnetstate = STREAM;
-
-                } else {
-                    telnetstate = SB;
-                }
+            case SDLK_F2:
+                tsmsym = XKB_KEY_F2;
                 break;
-            
-            case DONT:
-                telnetstate = STREAM;
+            case SDLK_F3:
+                tsmsym = XKB_KEY_F3;
                 break;
-
-            case WONT:
-                telnetstate = STREAM;
+            case SDLK_F4:
+                tsmsym = XKB_KEY_F4;
                 break;
-
-            case WILL:
-
-                if (c == '\x54' && enable_compression) {
-                    // Compression.
-                    telnet_do(socket, c);
-                }
-
-                telnetstate = STREAM;
+            case SDLK_F5:
+                tsmsym = XKB_KEY_F5;
                 break;
-
-            case DO:
-
-                if (c == '\x1F') {
-                    // Window size.
-                    telnet_will(socket, c);
-                    send_resize(screen, socket);
-
-                } else if (c == '\x18') {
-                    // Terminal type
-                    telnet_will(socket, c);
-
-                } else {
-                    telnet_wont(socket, c);
-                }
-
-                telnetstate = STREAM;
+            case SDLK_F6:
+                tsmsym = XKB_KEY_F6;
                 break;
+            case SDLK_F7:
+                tsmsym = XKB_KEY_F7;
+                break;
+            case SDLK_F8:
+                tsmsym = XKB_KEY_F8;
+                break;
+            case SDLK_F9:
+                tsmsym = XKB_KEY_F9;
+                break;
+            case SDLK_F10:
+                tsmsym = XKB_KEY_F10;
+                break;
+            case SDLK_F11:
+                tsmsym = XKB_KEY_F11;
+                break;
+            case SDLK_F12:
+                tsmsym = XKB_KEY_F12;
+                break;
+            default:
+                return;
             }
         }
 
-        if (telnetstate == STREAM)
-            break;
+        tsm_vte_handle_keyboard(vte.vte, tsmsym, key, mods, key);
+    }
+};
+
+
+template <typename SOCKET>
+struct Protocol_Telnet : public Protocol_Base<SOCKET> {
+
+    unsigned int polltimeout;
+    bool enable_compression;
+
+    using Protocol_Base<SOCKET>::vte;
+
+    Protocol_Telnet(VTE<SOCKET>& _vte, unsigned int pt, bool ec) : 
+        Protocol_Base<SOCKET>(_vte), polltimeout(pt), enable_compression(ec) {}
+
+    // Send a resize event to the telnet server.
+    void send_resize(unsigned int sw, unsigned int sh) {
+
+        std::string tmp;
+        tmp.reserve(9);
+
+        tmp += '\xFF';
+        tmp += '\xFA';
+        tmp += '\x1F';
+        tmp += (unsigned char)(sw >> 8);
+        tmp += (unsigned char)(sw & 0xFF);
+        tmp += (unsigned char)(sh >> 8);
+        tmp += (unsigned char)(sh & 0xFF);
+        tmp += '\xFF';
+        tmp += '\xF0';
+
+        vte.socket.send(tmp);
     }
 
-    //bm _x("redraw");
+    // Cruft for the telnet server.
+    void send_terminal_type(const std::string& type) {
 
-    vte.feed(rewritten);
-    vte.redraw();
+        std::string tmp;
+        tmp.reserve(6+type.size());
 
-    buff.clear();
-    rewritten.clear();
-}
+        tmp += '\xFF';
+        tmp += '\xFA';
+        tmp += '\x18';
+        tmp += '\x00';
+        tmp += type;
+        tmp += '\xFF';
+        tmp += '\xF0';
+
+        vte.socket.send(tmp);
+    }
+
+    void telnet_will(char c) {
+        std::string tmp;
+        tmp.reserve(3);
+
+        tmp += '\xFF';
+        tmp += '\xFB';
+        tmp += c;
+
+        vte.socket.send(tmp);
+    }
+
+    void telnet_wont(char c) {
+        std::string tmp;
+        tmp.reserve(3);
+
+        tmp += '\xFF';
+        tmp += '\xFC';
+        tmp += c;
+
+        vte.socket.send(tmp);
+    }
+
+    void telnet_do(char c) {
+        std::string tmp;
+        tmp.reserve(3);
+
+        tmp += '\xFF';
+        tmp += '\xFD';
+        tmp += c;
+
+        vte.socket.send(tmp);
+    }
+
+    // Handle a window resize event from the GUI.
+    void resizer(unsigned int sw, unsigned int sh) {
+
+        send_resize(sw, sh);
+        vte.resize(sw, sh);
+    }
+
+
+    // The meat of the telnet protocol.
+    bool multiplexor() {
+
+        static std::string buff;
+        static std::string rewritten;
+
+        if (!vte.socket.poll(polltimeout))
+            return false;
+
+        enum {
+            STREAM,
+            IAC,
+            DO,
+            DONT,
+            WONT,
+            WILL,
+            SB,
+            SB_IAC
+        } telnetstate = STREAM;
+
+        while (1) {
+
+            buff.resize(16*1024);
+
+            if (!vte.socket.recv(buff)) {
+
+                return true;
+            }
+
+            rewritten.reserve(buff.size());
+
+            for (char c : buff) {
+
+                switch (telnetstate) {
+
+                case STREAM:
+
+                    if (c == '\xFF') {
+                        telnetstate = IAC;
+
+                    } else if (c == '\0') {
+                        // Nothing, skip random null bytes that telnetd likes to send for no reason.
+
+                    } else {
+                        rewritten += c;
+                    }
+                    break;
+
+                case IAC:
+
+                    if (c == '\xFF') {
+                        rewritten += c;
+                        telnetstate = STREAM;
+
+                    } else if (c == '\xFA') {
+                        telnetstate = SB;
+
+                    } else if (c == '\xFE') {
+                        telnetstate = DONT;
+
+                    } else if (c == '\xFD') {
+                        telnetstate = DO;
+
+                    } else if (c == '\xFC') {
+                        telnetstate = WONT;
+
+                    } else if (c == '\xFB') {
+                        telnetstate = WILL;
+
+                    } else {
+                        telnetstate = STREAM;
+                    }
+                    break;
+
+                case SB:
+
+                    if (c == '\xFF') {
+                        telnetstate = SB_IAC;
+
+                    } else if (c == '\x18') {
+                        send_terminal_type("xterm");
+
+                    } else if (c == '\x54') {
+                        vte.socket.compression = true;
+                    }
+                    break;
+
+                case SB_IAC:
+
+                    if (c == '\xF0') {
+                        telnetstate = STREAM;
+
+                    } else {
+                        telnetstate = SB;
+                    }
+                    break;
+            
+                case DONT:
+                    telnetstate = STREAM;
+                    break;
+
+                case WONT:
+                    telnetstate = STREAM;
+                    break;
+
+                case WILL:
+
+                    if (c == '\x54' && enable_compression) {
+                        // Compression.
+                        telnet_do(c);
+                    }
+
+                    telnetstate = STREAM;
+                    break;
+
+                case DO:
+
+                    if (c == '\x1F') {
+                        // Window size.
+                        telnet_will(c);
+                        send_resize(vte.sw, vte.sh);
+
+                    } else if (c == '\x18') {
+                        // Terminal type
+                        telnet_will(c);
+
+                    } else {
+                        telnet_wont(c);
+                    }
+
+                    telnetstate = STREAM;
+                    break;
+                }
+            }
+
+            if (telnetstate == STREAM)
+                break;
+        }
+
+        //
+
+        vte.feed(rewritten);
+        vte.redraw();
+
+        buff.clear();
+        rewritten.clear();
+
+        return false;
+    }
+};
+
 
 
 void usage(const std::string& argv0) {
@@ -1293,7 +1332,7 @@ int main(int argc, char** argv) {
 
         Socket sock(cfg.host, cfg.port);
 
-        VTE vte(screen, sock);
+        VTE<Socket> vte(screen, sock);
 
         if (cfg.palette.size() > 0) {
             vte.set_palette(cfg.palette);
@@ -1301,12 +1340,9 @@ int main(int argc, char** argv) {
 
         vte.set_cursor(cfg.cursor);
 
-        screen.mainloop(std::bind(multiplexor, std::placeholders::_1, std::ref(sock), std::ref(vte), 
-                                  cfg.polling_rate, cfg.compression),
-                        std::bind(resizer, std::placeholders::_1, std::ref(sock), std::ref(vte)),
-                        std::bind(keypressor, std::placeholders::_1, std::placeholders::_2, std::ref(vte)),
-                        std::bind(textor, std::placeholders::_1, std::placeholders::_2, std::ref(vte))
-            );
+        Protocol_Telnet<Socket> protocol(vte, cfg.polling_rate, cfg.compression);
+
+        screen.mainloop(protocol);
 
     } catch (std::exception& e) {
         std::cout << "Fatal Error: " << e.what() << std::endl;
