@@ -25,6 +25,11 @@ extern "C" {
 
 #include "lz77.h"
 
+#include <stdlib.h>
+#include <unistd.h>
+#include <poll.h>
+#include <pty.h>
+
 
 /*
 struct bm {
@@ -568,125 +573,6 @@ struct Screen {
 };
 
 
-struct Socket {
-
-    TCPsocket socket;
-    SDLNet_SocketSet poller;
-
-    bool compression;
-    std::string compression_leftover;
-    lz77::decompress_t decompressor;
-
-    Socket(const std::string& host, unsigned int port) : socket(NULL), compression(false) {
-
-        try {
-
-            if (SDLNet_Init() < 0)
-                throw std::runtime_error("Could not init network");
-
-            IPaddress addr;
-
-            if (SDLNet_ResolveHost(&addr, host.c_str(), port) < 0) 
-                throw std::runtime_error("No such host: " + host);
-
-            socket = SDLNet_TCP_Open(&addr);
-
-            if (socket == NULL)
-                throw std::runtime_error("Could not open connection to " + host);
-
-            poller = SDLNet_AllocSocketSet(1);
-
-            if (poller == NULL)
-                throw std::runtime_error("Could not allocate socket set");
-
-            SDLNet_TCP_AddSocket(poller, socket);
-
-        } catch (...) {
-
-            if (socket != NULL)
-                SDLNet_TCP_Close(socket);
-
-            SDLNet_Quit();
-            throw;
-        }
-    }
-
-    ~Socket() {
-
-        SDLNet_TCP_Close(socket);
-        SDLNet_Quit();
-    }
-
-    bool recv_raw(std::string& out) {
-
-        int i = SDLNet_TCP_Recv(socket, (char*)out.data(), out.size());
-
-        if (i < 0)
-            throw std::runtime_error("Error receiving data");
-
-        out.resize(i);
-
-        if (out.empty())
-            return false;
-
-        return true;
-    }
-
-    bool recv(std::string& out) {
-
-        bool ret = true;
-
-        if (compression_leftover.size() > 0) {
-            out.swap(compression_leftover);
-            compression_leftover.clear();
-
-        } else {
-            ret = recv_raw(out);
-        }
-
-        if (!compression)
-            return ret;
-
-        bool done = decompressor.feed(out, compression_leftover);
-
-        while (!done) {
-
-            ret = recv_raw(out);
-
-            done = decompressor.feed(out, compression_leftover);
-        }
-
-        out.swap(decompressor.result());
-
-        return ret;
-    }
-
-    void send(const std::string& in) {
-
-        int i = SDLNet_TCP_Send(socket, (char*)in.data(), in.size());
-
-        if (i != (int)in.size())
-            throw std::runtime_error("Error sending data");
-    }
-
-    void send(const char* data, size_t len) {
-
-        int i = SDLNet_TCP_Send(socket, data, len);
-
-        if (i != (int)len)
-            throw std::runtime_error("Error sending data");
-    }
-
-    bool poll(unsigned int wait = 100) {
-
-        if (compression_leftover.size() > 0) {
-            return true;
-        }
-
-        return SDLNet_CheckSockets(poller, wait);
-    }
-};
-
 void tsm_logger_cb(void* data, const char* file, int line, const char* func, const char* subs,
              unsigned int sev, const char* format, va_list args) {
 
@@ -808,6 +694,218 @@ struct VTE {
     }
 };
 
+
+struct Socket {
+
+    TCPsocket socket;
+    SDLNet_SocketSet poller;
+
+    bool compression;
+    std::string compression_leftover;
+    lz77::decompress_t decompressor;
+
+    Socket(const std::string& host, unsigned int port) : socket(NULL), compression(false) {
+
+        try {
+
+            if (SDLNet_Init() < 0)
+                throw std::runtime_error("Could not init network");
+
+            IPaddress addr;
+
+            if (SDLNet_ResolveHost(&addr, host.c_str(), port) < 0) 
+                throw std::runtime_error("No such host: " + host);
+
+            socket = SDLNet_TCP_Open(&addr);
+
+            if (socket == NULL)
+                throw std::runtime_error("Could not open connection to " + host);
+
+            poller = SDLNet_AllocSocketSet(1);
+
+            if (poller == NULL)
+                throw std::runtime_error("Could not allocate socket set");
+
+            SDLNet_TCP_AddSocket(poller, socket);
+
+        } catch (...) {
+
+            if (socket != NULL)
+                SDLNet_TCP_Close(socket);
+
+            SDLNet_Quit();
+            throw;
+        }
+    }
+
+    ~Socket() {
+
+        SDLNet_TCP_Close(socket);
+        SDLNet_Quit();
+    }
+
+    bool recv_raw(std::string& out) {
+
+        int i = SDLNet_TCP_Recv(socket, (char*)out.data(), out.size());
+
+        if (i < 0)
+            throw std::runtime_error("Error receiving data");
+
+        out.resize(i);
+
+        if (out.empty())
+            return false;
+
+        return true;
+    }
+
+    bool recv(std::string& out) {
+
+        bool ret = true;
+
+        if (compression_leftover.size() > 0) {
+            out.swap(compression_leftover);
+            compression_leftover.clear();
+
+        } else {
+            ret = recv_raw(out);
+        }
+
+        if (!compression)
+            return ret;
+
+        bool done = decompressor.feed(out, compression_leftover);
+
+        while (!done) {
+
+            ret = recv_raw(out);
+
+            done = decompressor.feed(out, compression_leftover);
+        }
+
+        out.swap(decompressor.result());
+
+        return ret;
+    }
+
+    void send(const std::string& in) {
+
+        int i = SDLNet_TCP_Send(socket, (char*)in.data(), in.size());
+
+        if (i != (int)in.size())
+            throw std::runtime_error("Error sending data");
+    }
+
+    void send(const char* data, size_t len) {
+
+        int i = SDLNet_TCP_Send(socket, data, len);
+
+        if (i != (int)len)
+            throw std::runtime_error("Error sending data");
+    }
+
+    bool poll(unsigned int wait = 100) {
+
+        if (compression_leftover.size() > 0) {
+            return true;
+        }
+
+        return SDLNet_CheckSockets(poller, wait);
+    }
+};
+
+
+struct Process {
+
+    int fd;
+    pid_t pid;
+    struct pollfd poller;
+
+    Process(const std::vector<std::string>& cmd, unsigned int w, unsigned int h) {
+
+        if (cmd.size() == 0)
+            throw std::runtime_error("Need a command to run.");
+
+        struct winsize ws;
+        ws.ws_col = w;
+        ws.ws_row = h;
+
+        pid = forkpty(&fd, NULL, NULL, &ws);
+
+        if (pid < 0)
+            throw std::runtime_error("Could not forkpty()");
+
+        poller.fd = fd;
+        poller.events = POLLIN;
+
+        if (pid == 0) {
+
+            setenv("TERM", "xterm", 1);
+
+            char** argv = new char*[cmd.size()];
+
+            for (size_t i = 0; i < cmd.size(); ++i) {
+                argv[i] = (char*)cmd[i].c_str();
+            }
+
+            execvp(argv[0], argv);
+
+            std::string tmp;
+            
+            for (const std::string& i : cmd) {
+                tmp += ' ';
+                tmp += i;
+            }
+            
+            throw std::runtime_error("Could not execute:" + tmp);
+        }
+    }
+
+    ~Process() {
+        close(fd);
+    }
+
+    bool recv(std::string& out) {
+
+        ssize_t i = read(fd, (char*)out.data(), out.size());
+
+        if (i < 0)
+            throw std::runtime_error("Error reading data");
+
+        out.resize(i);
+
+        if (out.empty())
+            return false;
+
+        return true;
+    }
+
+    void send(const std::string& in) {
+
+        ssize_t i = write(fd, (char*)in.data(), in.size());
+    
+        if (i != (ssize_t)in.size())
+            throw std::runtime_error("Error writing data");
+    }
+
+    void send(const char* data, size_t len) {
+
+        ssize_t i = write(fd, data, len);
+
+        if (i != (int)len)
+            throw std::runtime_error("Error writing data");
+    }
+
+    bool poll(unsigned int wait = 100) {
+
+        int r = ::poll(&poller, 1, wait);
+
+        if (r < 0)
+            throw std::runtime_error("Error in poll()");
+
+        return (r != 0);
+    }
+};
 
 template <typename SOCKET>
 struct Protocol_Base {
@@ -1256,6 +1354,57 @@ struct Protocol_Telnet : public Protocol_Base<SOCKET> {
     }
 };
 
+template <typename SOCKET>
+struct Protocol_Pty : public Protocol_Base<SOCKET> {
+
+    unsigned int polltimeout;
+
+    using Protocol_Base<SOCKET>::vte;
+
+    Protocol_Pty(VTE<SOCKET>& _vte, unsigned int pt, bool ec) :
+        Protocol_Base<SOCKET>(_vte), polltimeout(pt) {}
+
+    void send_resize(unsigned int sw, unsigned int sh) {
+        
+        struct winsize ws;
+        ws.ws_col = sw;
+        ws.ws_row = sh;
+        
+        ioctl(vte.socket.fd, TIOCSWINSZ, &ws);
+    }
+
+    void resizer(unsigned int sw, unsigned int sh) {
+
+        send_resize(sw, sh);
+        vte.resize(sw, sh);
+    }
+
+    bool multiplexor() {
+
+        std::cout << "multiplexor" << std::endl;
+
+        static std::string buff;
+
+        if (!vte.socket.poll(polltimeout)) {
+            std::cout << "Polled false" << std::endl;
+            return false;
+        }
+
+        buff.resize(16*1024);
+
+        if (!vte.socket.recv(buff)) {
+            std::cout << "Recv false" << std::endl;
+            return true;
+        }
+
+        vte.feed(buff);
+        vte.redraw();
+
+        buff.clear();
+
+        return false;
+    }
+};
 
 
 void usage(const std::string& argv0) {
@@ -1328,8 +1477,11 @@ int main(int argc, char** argv) {
             cfg.tiles.clear();
         }
 
+
+        std::cout << "Making screen" << std::endl;
         Screen screen(cfg);
 
+        /*
         Socket sock(cfg.host, cfg.port);
 
         VTE<Socket> vte(screen, sock);
@@ -1341,7 +1493,29 @@ int main(int argc, char** argv) {
         vte.set_cursor(cfg.cursor);
 
         Protocol_Telnet<Socket> protocol(vte, cfg.polling_rate, cfg.compression);
+        
+        screen.mainloop(protocol);
+        */
 
+        std::vector<std::string> cmd;
+        cmd.push_back(argv[1]);
+
+        std::cout << "Starting process" << std::endl;
+        Process proc(cmd, screen.sw, screen.sh);
+
+        std::cout << "Making vte" << std::endl;
+        VTE<Process> vte(screen, proc);
+
+        if (cfg.palette.size() > 0) {
+            vte.set_palette(cfg.palette);
+        }
+
+        vte.set_cursor(cfg.cursor);
+
+        std::cout << "Making protocol" << std::endl;
+        Protocol_Pty<Process> protocol(vte, cfg.polling_rate, cfg.compression);
+        
+        std::cout << "Mainloop" << std::endl;
         screen.mainloop(protocol);
 
     } catch (std::exception& e) {
