@@ -1200,6 +1200,7 @@ struct Protocol_Telnet : public Protocol_Base<SOCKET> {
 
         send_resize(sw, sh);
         vte.resize(sw, sh);
+        vte.redraw();
     }
 
 
@@ -1377,6 +1378,7 @@ struct Protocol_Pty : public Protocol_Base<SOCKET> {
 
         send_resize(sw, sh);
         vte.resize(sw, sh);
+        vte.redraw();
     }
 
     bool multiplexor() {
