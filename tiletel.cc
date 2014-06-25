@@ -821,16 +821,12 @@ struct Process {
     pid_t pid;
     struct pollfd poller;
 
-    Process(const std::vector<std::string>& cmd, unsigned int w, unsigned int h) {
+    Process(const std::vector<std::string>& cmd) {
 
         if (cmd.size() == 0)
             throw std::runtime_error("Need a command to run.");
 
-        struct winsize ws;
-        ws.ws_col = w;
-        ws.ws_row = h;
-
-        pid = forkpty(&fd, NULL, NULL, &ws);
+        pid = forkpty(&fd, NULL, NULL, NULL);
 
         if (pid < 0)
             throw std::runtime_error("Could not forkpty()");
@@ -842,11 +838,13 @@ struct Process {
 
             setenv("TERM", "xterm", 1);
 
-            char** argv = new char*[cmd.size()];
+            char** argv = new char*[cmd.size() + 1];
 
             for (size_t i = 0; i < cmd.size(); ++i) {
                 argv[i] = (char*)cmd[i].c_str();
             }
+
+            argv[cmd.size()] = NULL;
 
             execvp(argv[0], argv);
 
@@ -869,8 +867,10 @@ struct Process {
 
         ssize_t i = read(fd, (char*)out.data(), out.size());
 
-        if (i < 0)
+        if (i < 0) {
+            std::cout << ". " << errno << std::endl;
             throw std::runtime_error("Error reading data");
+        }
 
         out.resize(i);
 
@@ -1478,10 +1478,8 @@ int main(int argc, char** argv) {
         }
 
 
-        std::cout << "Making screen" << std::endl;
-        Screen screen(cfg);
-
         /*
+        Screen screen(cfg);
         Socket sock(cfg.host, cfg.port);
 
         VTE<Socket> vte(screen, sock);
@@ -1501,7 +1499,10 @@ int main(int argc, char** argv) {
         cmd.push_back(argv[1]);
 
         std::cout << "Starting process" << std::endl;
-        Process proc(cmd, screen.sw, screen.sh);
+        Process proc(cmd);
+
+        std::cout << "Making screen" << std::endl;
+        Screen screen(cfg);
 
         std::cout << "Making vte" << std::endl;
         VTE<Process> vte(screen, proc);
@@ -1514,6 +1515,8 @@ int main(int argc, char** argv) {
 
         std::cout << "Making protocol" << std::endl;
         Protocol_Pty<Process> protocol(vte, cfg.polling_rate, cfg.compression);
+
+        protocol.resizer(screen.sw, screen.sh);
         
         std::cout << "Mainloop" << std::endl;
         screen.mainloop(protocol);
