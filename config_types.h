@@ -18,6 +18,8 @@ struct Config {
     std::string host;
     unsigned int port;
 
+    std::vector<std::string> command;
+
     std::string palette;
     std::unordered_map<uint32_t, uint32_t> tile_mapping;
 

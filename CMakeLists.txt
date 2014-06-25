@@ -8,10 +8,16 @@ SET(CMAKE_CXX_FLAGS_RELEASE "-Wall -std=c++11 -O4 -pthread -g")
 SET(CMAKE_C_FLAGS_RELEASE "-Wall -O4 -pthread -g")
 
 if(WIN32)
+
   SET(CMAKE_EXE_LINKER_FLAGS " -static -mwindows")
+
+else(WIN32)
+
+  ADD_DEFINITIONS(-DHAVE_PTY_SUPPORT)
+
 endif()
 
-SET(CMAKE_EXE_LINKER_FLAGS " -lutil")
+
 
 SET(ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 SET(INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/dist)
@@ -72,7 +78,7 @@ if(WIN32)
 
 else(WIN32)
 
-  target_link_libraries(tiletel SDL2 SDL2_net SDL2_image)
+  target_link_libraries(tiletel SDL2 SDL2_net SDL2_image util)
 
 endif(WIN32)
 
