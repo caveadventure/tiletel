@@ -867,10 +867,9 @@ struct Process {
 
         ssize_t i = read(fd, (char*)out.data(), out.size());
 
-        if (i < 0) {
-            std::cout << ". " << errno << std::endl;
-            throw std::runtime_error("Error reading data");
-        }
+        if (i < 0)
+            return false;
+            //throw std::runtime_error("Error reading data");
 
         out.resize(i);
 
@@ -1383,19 +1382,15 @@ struct Protocol_Pty : public Protocol_Base<SOCKET> {
 
     bool multiplexor() {
 
-        std::cout << "multiplexor" << std::endl;
-
         static std::string buff;
 
         if (!vte.socket.poll(polltimeout)) {
-            std::cout << "Polled false" << std::endl;
             return false;
         }
 
         buff.resize(16*1024);
 
         if (!vte.socket.recv(buff)) {
-            std::cout << "Recv false" << std::endl;
             return true;
         }
 
@@ -1500,13 +1495,10 @@ int main(int argc, char** argv) {
         std::vector<std::string> cmd;
         cmd.push_back(argv[1]);
 
-        std::cout << "Starting process" << std::endl;
         Process proc(cmd);
 
-        std::cout << "Making screen" << std::endl;
         Screen screen(cfg);
 
-        std::cout << "Making vte" << std::endl;
         VTE<Process> vte(screen, proc);
 
         if (cfg.palette.size() > 0) {
@@ -1515,12 +1507,10 @@ int main(int argc, char** argv) {
 
         vte.set_cursor(cfg.cursor);
 
-        std::cout << "Making protocol" << std::endl;
         Protocol_Pty<Process> protocol(vte, cfg.polling_rate, cfg.compression);
 
         protocol.resizer(screen.sw, screen.sh);
         
-        std::cout << "Mainloop" << std::endl;
         screen.mainloop(protocol);
 
     } catch (std::exception& e) {
