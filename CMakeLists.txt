@@ -4,6 +4,9 @@ project (tiletel)
 
 SET(CMAKE_BUILD_TYPE "Release")
 
+find_package(Qt5Gui)
+find_package(Qt5Network)
+
 SET(CMAKE_CXX_FLAGS_RELEASE "-Wall -std=c++11 -O4 -pthread -g")
 SET(CMAKE_C_FLAGS_RELEASE "-Wall -O4 -pthread -g")
 
@@ -74,11 +77,11 @@ endif(NOT RAGEL)
 if(WIN32)
 
   target_link_libraries(tiletel 
-                        mingw32 SDL2main SDL2 SDL2_net SDL2_image ws2_32 winmm imm32 version iphlpapi)
+                        mingw32 Qt5::Gui Qt5::Network ws2_32 winmm imm32 version iphlpapi)
 
 else(WIN32)
 
-  target_link_libraries(tiletel SDL2 SDL2_net SDL2_image util)
+  target_link_libraries(tiletel Qt5::Gui Qt5::Network util)
 
 endif(WIN32)
 

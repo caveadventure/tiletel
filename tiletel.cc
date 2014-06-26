@@ -7,6 +7,7 @@
 #include <unordered_map>
 
 #include <QtGui>
+#include <QtNetwork>
 
 #include "libtsm/src/libtsm.h"
 
@@ -57,15 +58,18 @@ struct Tiler {
 
     std::unordered_map<uint32_t, indexed_bitmap> tiles;
 
-    const std::unordered_map<uint32_t, uint32_t>& tile_mapping;
+    config::Config& cfg;
+
+    bdf::Font font;
 
     Tiler(config::Config& _cfg):
         tw(cfg.tile_width), th(cfg.tile_height), 
-        sw(cfg.screen_width), sh(cfg.screen_height) {
+        sw(cfg.screen_width), sh(cfg.screen_height),
+        cfg(_cfg) {
 
         if (!cfg.tiles.empty()) {
 
-            QImage rtiles(cfg.tiles);
+            QImage rtiles(QString(cfg.tiles.c_str()));
 
             surface_to_indexed(rtiles, tw, th, tiles);
         }
@@ -174,7 +178,7 @@ struct Tiler {
                 indexed_bitmap& what = out[which];
 
                 for (unsigned int yy = 0; yy < th; ++yy) {
-                    for (unsigned int xx = 0; xx < tw; ++xx, ++pixels) {
+                    for (unsigned int xx = 0; xx < tw; ++xx) {
 
                         int colorix = s.pixelIndex(txx*tw + xx, tyy*th + yy);
                         QRgb color = s.color(colorix);
@@ -256,7 +260,7 @@ struct Tiler {
     }
 
     inline pixel_t color_avg(uint8_t cr, uint8_t cg, uint8_t cb, uint8_t r, uint8_t g, uint8_t b) {
-        return map_color(screen, ((r+cr)/2), ((g+cg)/2), ((b+cb)/2));
+        return map_color(((r+cr)/2), ((g+cg)/2), ((b+cb)/2));
     }
 
     inline pixel_t* cursor(unsigned char* pixels, unsigned int pitch, unsigned int x, unsigned int y) {
@@ -329,13 +333,13 @@ struct Tiler {
             return;
         }
 
-        if (x >= self.sw || y >= self.sh)
+        if (x >= sw || y >= sh)
             throw std::runtime_error("Invalid screen offset in tile()");
 
-        unsigned int to_x = x * self.tw;
-        unsigned int to_y = y * self.th;
-        unsigned int to_w = self.tw * cwidth;
-        unsigned int to_h = self.th;
+        unsigned int to_x = x * tw;
+        unsigned int to_y = y * th;
+        unsigned int to_w = tw * cwidth;
+        unsigned int to_h = th;
 
         if (inverse) {
             uint8_t tr = br;
@@ -360,9 +364,9 @@ struct Tiler {
         // Draw pixel tiles.
         if (!tiles.empty()) {
 
-            auto tmi = tile_mapping.find(ti);
+            auto tmi = cfg.tile_mapping.find(ti);
 
-            if (tmi != tile_mapping.end()) {
+            if (tmi != cfg.tile_mapping.end()) {
 
                 uint32_t pixi = tmi->second;
 
@@ -438,8 +442,6 @@ public:
         if (!isExposed())
             return;
 
-        render();
-
         QRect rect(0, 0, width(), height());
         backingStore.beginPaint(rect);
 
@@ -493,7 +495,7 @@ public:
 
     void keyEvent(QKeyEvent* event) {
 
-        if (event->text.size() == 0) {
+        if (event->text().size() == 0) {
             protocol.keypressor(event->key(), event->modifiers());
 
         } else {
@@ -546,9 +548,9 @@ int tsm_drawer_cb(struct tsm_screen* screen, uint32_t id, const uint32_t* ch, si
     for (unsigned int i = 0; i < len; i += cwidth) {
         uint32_t c = ch[i];
 
-        draw->tile(posx+i, posy, c, cwidth, attr->inverse,
-                   attr->fr, attr->fg, attr->fb,
-                   attr->br, attr->bg, attr->bb);
+        tiler->tile(posx+i, posy, c, cwidth, attr->inverse,
+                    attr->fr, attr->fg, attr->fb,
+                    attr->br, attr->bg, attr->bb);
     }
 
     if (len == 0) {
@@ -573,7 +575,7 @@ struct VTE {
     unsigned int sw;
     unsigned int sh;
     
-    VTE(SOCKET& s) : screen(NULL), vte(NULL), draw(d), socket(s), sw(d.sw), sh(d.sh)
+    VTE(SOCKET& s) : screen(NULL), vte(NULL), socket(s), sw(0), sh(0)
     {
 
         try {
@@ -583,9 +585,6 @@ struct VTE {
 
             if (tsm_vte_new(&vte, screen, tsm_term_writer_cb<SOCKET>, &socket, tsm_logger_cb, NULL) < 0)
                 throw std::runtime_error("Could not init tsm_vte");
-
-            if (tsm_screen_resize(screen, sw, sh) < 0)
-                throw std::runtime_error("Could not resize screen");
 
         } catch (...) {
 
@@ -648,7 +647,7 @@ struct Socket {
 
     Socket(const std::string& host, unsigned int port) : compression(false) {
 
-        socket.connectToHost(host, port);
+        socket.connectToHost(QString(host.c_str()), port);
     }
 
     bool recv_raw(std::string& out) {
@@ -872,7 +871,7 @@ struct Protocol_Base {
     template <typename UCS>
     void keypressor(const UCS& ucs) {
 
-        for (uint32_t glyph : utf) {
+        for (uint32_t glyph : ucs) {
 
             tsm_vte_handle_keyboard(vte.vte, XKB_KEY_NoSymbol, glyph, 0, glyph);
         }
@@ -881,9 +880,9 @@ struct Protocol_Base {
     // Feeds raw keypress data to the terminal emulator.
     void keypressor(int key, Qt::KeyboardModifiers qmods) {
 
-        unsigned char key = (key > 127 ? '?' : key);
+        unsigned char xkey = (key > 127 ? '?' : key);
 
-        if (key == 0)
+        if (xkey == 0)
             return;
 
         unsigned int mods = 0;
@@ -904,7 +903,7 @@ struct Protocol_Base {
 
         if (qmods & Qt::KeypadModifier) {
 
-            switch (k.sym) {
+            switch (key) {
             case Qt::Key_1:
                 tsmsym = XKB_KEY_Select;
                 break;
@@ -936,7 +935,7 @@ struct Protocol_Base {
 
         } else {
 
-            switch (k.sym) {
+            switch (key) {
             case Qt::Key_Insert:
                 tsmsym = XKB_KEY_Insert;
                 break;
@@ -1006,7 +1005,7 @@ struct Protocol_Base {
             }
         }
 
-        tsm_vte_handle_keyboard(vte.vte, tsmsym, key, mods, key);
+        tsm_vte_handle_keyboard(vte.vte, tsmsym, xkey, mods, xkey);
     }
 };
 
@@ -1406,7 +1405,7 @@ int main(int argc, char** argv) {
 
             Protocol_Pty<Process> protocol(vte, cfg.polling_rate, cfg.compression);
 
-            RasterWindow screen(protocol, cfg);
+            RasterWindow< Protocol_Pty<Process> > screen(protocol, cfg);
             screen.show();
             GLOBAL_TILER = &(screen.tiler);
 
@@ -1423,7 +1422,7 @@ int main(int argc, char** argv) {
 
         Socket sock(cfg.host, cfg.port);
 
-        VTE<Socket> vte(screen, sock);
+        VTE<Socket> vte(sock);
 
         if (cfg.palette.size() > 0) {
             vte.set_palette(cfg.palette);
@@ -1433,9 +1432,11 @@ int main(int argc, char** argv) {
 
         Protocol_Telnet<Socket> protocol(vte, cfg.polling_rate, cfg.compression);
         
-        RasterWindow screen(protocol, cfg);
+        RasterWindow< Protocol_Telnet<Socket> > screen(protocol, cfg);
         screen.show();
         GLOBAL_TILER = &(screen.tiler);
+
+        protocol.resizer(screen.tiler.sw, screen.tiler.sh);
 
         screen.mainloop(app);
 
