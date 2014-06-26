@@ -16,17 +16,27 @@ public:
 
     config::Config& cfg;
 
+    unsigned int tw;
+    unsigned int th;
+    unsigned int sw;
+    unsigned int sh;
+
     bdf::Font font;
     
     explicit RasterWindow(config::Config& _cfg, QWindow* parent = 0) : 
-        QWindow(parent), cfg(_cfg), m_update_pending(false) {
+        QWindow(parent), 
+        cfg(_cfg), 
+        tw(cfg.tile_width), th(cfg.tile_height), 
+        sw(cfg.screen_width), sh(cfg.screen_height), 
+        m_update_pending(false) {
 
         bdf::parse_bdf(cfg.fonts.front(), font);
 
         m_backingStore = new QBackingStore(this);
         create();
 
-        setGeometry(100, 100, 300, 200);
+        resize(tw*sw, th*sh);
+        m_backingStore->resize(tw*sw, th*sh);
     }
 
     virtual void render(QPainter* painter) {
