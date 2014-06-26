@@ -36,6 +36,8 @@ extern "C" {
 
 struct Tiler {
 
+    config::Config& cfg;
+
     unsigned int tw;
     unsigned int th;
     unsigned int sw;
@@ -58,14 +60,12 @@ struct Tiler {
 
     std::unordered_map<uint32_t, indexed_bitmap> tiles;
 
-    config::Config& cfg;
-
     bdf::Font font;
 
     Tiler(config::Config& _cfg):
+        cfg(_cfg),
         tw(cfg.tile_width), th(cfg.tile_height), 
-        sw(cfg.screen_width), sh(cfg.screen_height),
-        cfg(_cfg) {
+        sw(cfg.screen_width), sh(cfg.screen_height) {
 
         if (!cfg.tiles.empty()) {
 
@@ -510,6 +510,8 @@ public:
             done = protocol.multiplexor();
 
             app.processEvents();
+
+            renderNow();
         }
     }
 };
@@ -821,51 +823,6 @@ struct Protocol_Base {
     VTE<SOCKET>& vte;
 
     Protocol_Base(VTE<SOCKET>& _vte) : vte(_vte) {}
-
-
-    static unsigned char doshift(unsigned char c) {
-        static bool init = false;
-        static unsigned char map[128];
-
-        if (c >= 128)
-            return c;
-
-        if (!init) {
-            for (unsigned char i = 0; i < 128; ++i) {
-                map[i] = i;
-            }
-
-            for (unsigned char i = 'a'; i <= 'z'; ++i) {
-                map[i] = i - 'a' + 'A';
-            }
-
-            map['`'] = '~';
-            map['1'] = '!';
-            map['2'] = '@';
-            map['3'] = '#';
-            map['4'] = '$';
-            map['5'] = '%';
-            map['6'] = '^';
-            map['7'] = '&';
-            map['8'] = '*';
-            map['9'] = '(';
-            map['0'] = ')';
-            map['-'] = '_';
-            map['='] = '+';
-            map['['] = '{';
-            map[']'] = '}';
-            map['\\'] = '|';
-            map[';'] = ':';
-            map['\''] = '"';
-            map[','] = '<';
-            map['.'] = '>';
-            map['/'] = '?';
-
-            init = true;
-        }
-
-        return map[c];
-    }
 
     // Feeds keyboard text input to the terminal emulator.
     template <typename UCS>
