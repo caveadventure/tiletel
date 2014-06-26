@@ -25,28 +25,16 @@ extern "C" {
 
 #include "lz77.h"
 
+
+#ifdef HAVE_PTY_SUPPORT
+
 #include <stdlib.h>
 #include <unistd.h>
 #include <poll.h>
 #include <pty.h>
 
+#endif
 
-/*
-struct bm {
-    struct timeval b;
-    std::string msg;
-    bm(const std::string& s) : msg(s) {
-        gettimeofday(&b, NULL);
-    }
-    ~bm() {
-        struct timeval e;
-        gettimeofday(&e, NULL);
-        size_t a = (e.tv_sec*1e6 + e.tv_usec);
-        size_t q = (b.tv_sec*1e6 + b.tv_usec);
-        std::cout << msg << ": " << ((double)a-(double)q)/1e6 << std::endl;
-    }
-};
-*/
 
 template <typename T>
 struct Tiler {
@@ -814,6 +802,7 @@ struct Socket {
     }
 };
 
+#ifdef HAVE_PTY_SUPPORT
 
 struct Process {
 
@@ -867,10 +856,9 @@ struct Process {
 
         ssize_t i = read(fd, (char*)out.data(), out.size());
 
-        if (i < 0) {
-            std::cout << ". " << errno << std::endl;
-            throw std::runtime_error("Error reading data");
-        }
+        if (i < 0)
+            return false;
+            //throw std::runtime_error("Error reading data");
 
         out.resize(i);
 
@@ -906,6 +894,8 @@ struct Process {
         return (r != 0);
     }
 };
+
+#endif
 
 template <typename SOCKET>
 struct Protocol_Base {
@@ -1355,6 +1345,8 @@ struct Protocol_Telnet : public Protocol_Base<SOCKET> {
     }
 };
 
+#ifdef HAVE_PTY_SUPPORT
+
 template <typename SOCKET>
 struct Protocol_Pty : public Protocol_Base<SOCKET> {
 
@@ -1383,19 +1375,15 @@ struct Protocol_Pty : public Protocol_Base<SOCKET> {
 
     bool multiplexor() {
 
-        std::cout << "multiplexor" << std::endl;
-
         static std::string buff;
 
         if (!vte.socket.poll(polltimeout)) {
-            std::cout << "Polled false" << std::endl;
             return false;
         }
 
         buff.resize(16*1024);
 
         if (!vte.socket.recv(buff)) {
-            std::cout << "Recv false" << std::endl;
             return true;
         }
 
@@ -1408,6 +1396,7 @@ struct Protocol_Pty : public Protocol_Base<SOCKET> {
     }
 };
 
+#endif
 
 void usage(const std::string& argv0) {
     std::cerr << "Usage: " << argv0 << " [--config <cfgfile>] [host] [port]" << std::endl;
@@ -1423,6 +1412,9 @@ int main(int argc, char** argv) {
         bool did_port = false;
         std::string host;
         unsigned int port = 0;
+
+        bool do_command = false;
+        std::vector<std::string> command;
 
         bool notiles = false;
 
@@ -1442,6 +1434,12 @@ int main(int argc, char** argv) {
             } else if (q == "-n" || q == "--notiles") {
 
                 notiles = true;
+
+            } else if (q == "-e" || q == "--exec") {
+                do_command = true;
+
+            } else if (do_command) {
+                command.push_back(q);
 
             } else if (!did_host) {
                 host = q;
@@ -1469,7 +1467,11 @@ int main(int argc, char** argv) {
             cfg.port = port;
         }
 
-        if (cfg.host.empty()) {
+        if (do_command) {
+            cfg.command = command;
+        }
+
+        if (cfg.host.empty() && cfg.command.empty()) {
             std::cerr << "No host to connect to." << std::endl;
             usage(argv[0]);
             return 1;
@@ -1479,10 +1481,36 @@ int main(int argc, char** argv) {
             cfg.tiles.clear();
         }
 
+#ifdef HAVE_PTY_SUPPORT
 
-        /*
-        Screen screen(cfg);
+        if (cfg.command.size() > 0) {
+
+            Process proc(cfg.command);
+
+            Screen screen(cfg);
+
+            VTE<Process> vte(screen, proc);
+
+            if (cfg.palette.size() > 0) {
+                vte.set_palette(cfg.palette);
+            }
+
+            vte.set_cursor(cfg.cursor);
+
+            Protocol_Pty<Process> protocol(vte, cfg.polling_rate, cfg.compression);
+
+            protocol.resizer(screen.sw, screen.sh);
+        
+            screen.mainloop(protocol);
+            
+            return 0;
+        }
+
+#endif
+
         Socket sock(cfg.host, cfg.port);
+
+        Screen screen(cfg);
 
         VTE<Socket> vte(screen, sock);
 
@@ -1495,33 +1523,7 @@ int main(int argc, char** argv) {
         Protocol_Telnet<Socket> protocol(vte, cfg.polling_rate, cfg.compression);
         
         screen.mainloop(protocol);
-        */
 
-        std::vector<std::string> cmd;
-        cmd.push_back(argv[1]);
-
-        std::cout << "Starting process" << std::endl;
-        Process proc(cmd);
-
-        std::cout << "Making screen" << std::endl;
-        Screen screen(cfg);
-
-        std::cout << "Making vte" << std::endl;
-        VTE<Process> vte(screen, proc);
-
-        if (cfg.palette.size() > 0) {
-            vte.set_palette(cfg.palette);
-        }
-
-        vte.set_cursor(cfg.cursor);
-
-        std::cout << "Making protocol" << std::endl;
-        Protocol_Pty<Process> protocol(vte, cfg.polling_rate, cfg.compression);
-
-        protocol.resizer(screen.sw, screen.sh);
-        
-        std::cout << "Mainloop" << std::endl;
-        screen.mainloop(protocol);
 
     } catch (std::exception& e) {
         std::cout << "Fatal Error: " << e.what() << std::endl;

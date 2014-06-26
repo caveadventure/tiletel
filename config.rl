@@ -188,9 +188,11 @@ void parse_config(const std::string& filename, Config& out) {
                                          'off' %{ out.compression = false; })
                       ws ';';
 
+        command = 'command' ( ws1 string %{ out.command.push_back(state.match); } )+ ws ';';
+
         config = 
             fonts | tiles | tilesize | screensize | fullscreen | compression |
-            connect_to | polling_rate | palette | map | disable_tiles | cursor
+            connect_to | polling_rate | palette | map | disable_tiles | cursor | command
             ;
 
       main := (ws config ws)+;
