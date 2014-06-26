@@ -6,9 +6,7 @@
 #include <functional>
 #include <unordered_map>
 
-#include "SDL2/SDL.h"
-#include "SDL2/SDL_image.h"
-#include "SDL2/SDL_net.h"
+#include <QtGui>
 
 #include "libtsm/src/libtsm.h"
 
@@ -35,191 +33,22 @@ extern "C" {
 
 #endif
 
-
-template <typename T>
 struct Tiler {
-
-    inline T map_color(SDL_Surface* screen, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
-        uint32_t _r = SDL_MapRGBA(screen->format, r, g, b, a);
-        return (T)_r;
-    }
-
-    inline T* cursor(SDL_Surface* screen, unsigned int x, unsigned int y) {
-        return (T*)((uint8_t*)screen->pixels + (y * screen->pitch) + (x * sizeof(T)));
-    }
-
-    inline void set_pixel(SDL_Surface* screen, unsigned int x, unsigned int y, T color) {
-        *cursor(screen, x, y) = color;
-    }
-
-    inline void fill_rect(SDL_Surface* screen, unsigned int to_x, unsigned int to_y, 
-                          unsigned int to_w, unsigned int to_h, T bgc) {
-
-        for (unsigned int yy = to_y; yy < to_h + to_y; ++yy) {
-
-            T* px = cursor(screen, to_x, yy);
-
-            for (unsigned int xx = 0; xx < to_w; ++xx, ++px) {
-                *px = bgc;
-            }
-        }
-    }
-
-    inline void blit_bitmap(SDL_Surface* screen, unsigned int to_x, unsigned int to_y,
-                            T fgc, const bdf::bitmap& bitmap) {
-
-        unsigned int xx = 0;
-        unsigned int yy = 0;
-
-        for (uint8_t v : bitmap.bm) {
-
-            if (v == 0) {
-                xx += 8;
-
-                if (xx >= bitmap.w) {
-                    xx = 0;
-                    ++yy;
-                }
-                continue;
-            }
-
-            T* px = cursor(screen, to_x + xx, to_y + yy);
-
-            for (int bit = 7; bit >= 0; --bit) {
-
-                if (v & (1 << bit)) 
-                    *px = fgc;
-
-                ++xx;
-                ++px;
-
-                if (xx >= bitmap.w) {
-                    xx = 0;
-                    ++yy;
-                    break;
-                }
-            }
-        }
-    }
-
-
-    inline uint32_t color_mul(SDL_Surface* screen, const SDL_Color& c, uint8_t r, uint8_t g, uint8_t b) {
-        return map_color(screen, ((r*c.r)/256), ((g*c.g)/256), ((b*c.b)/256), c.a);
-    }
-
-    inline uint32_t color_screen(SDL_Surface* screen, const SDL_Color& c, uint8_t r, uint8_t g, uint8_t b) {
-        return map_color(screen, 
-                         256 - (((256-r)*(256-c.r))/256.0), 
-                         256 - (((256-g)*(256-c.g))/256.0), 
-                         256 - (((256-b)*(256-c.b))/256.0), c.a);
-    }
-
-    inline uint32_t color_avg(SDL_Surface* screen, const SDL_Color& c, uint8_t r, uint8_t g, uint8_t b) {
-        return map_color(screen, ((r+c.r)/2), ((g+c.g)/2), ((b+c.b)/2), c.a);
-    }
-
-    template <typename SCREEN>
-    void tile(const SCREEN& self, 
-              unsigned int x, unsigned int y, 
-              uint32_t ti, unsigned int cwidth, bool inverse,
-              uint8_t fr, uint8_t fg, uint8_t fb,
-              uint8_t br, uint8_t bg, uint8_t bb) {
-
-        if (ti == 0xfffd) {
-            return;
-        }
-
-        if (x >= self.sw || y >= self.sh)
-            throw std::runtime_error("Invalid screen offset in tile()");
-
-        unsigned int to_x = x * self.tw;
-        unsigned int to_y = y * self.th;
-        unsigned int to_w = self.tw * cwidth;
-        unsigned int to_h = self.th;
-
-        if (inverse) {
-            uint8_t tr = br;
-            uint8_t tg = bg;
-            uint8_t tb = bb;
-            br = fr;
-            bg = fg;
-            bb = fb;
-            fr = tr;
-            fg = tg;
-            fb = tb;
-        }
-
-        T fgc = map_color(self.screen, fr, fg, fb, 0xFF);
-        T bgc = map_color(self.screen, br, bg, bb, 0xFF);
-
-        fill_rect(self.screen, to_x, to_y, to_w, to_h, bgc);
-
-        // Draw pixel tiles.
-        if (!self.tiles.empty()) {
-
-            auto tmi = self.tile_mapping.find(ti);
-
-            if (tmi != self.tile_mapping.end()) {
-
-                uint32_t pixi = tmi->second;
-
-                for (unsigned int cwi = 0; cwi < cwidth; ++cwi, ++pixi, to_x += self.tw) {
-
-                    auto tmpi = self.tiles.find(pixi);
-                    if (tmpi == self.tiles.end())
-                        return;
-
-                    for (const auto& l : tmpi->second.layers) {
-                        T fgp = color_mul(self.screen, l.color, fr, fg, fb);
-                        blit_bitmap(self.screen, to_x, to_y, fgp, l.bitmap);
-                    }
-                }
-
-                return;
-            }
-        }
-
-        // Or else draw font bitmaps.
-
-        auto gi = self.font.glyphs.find(ti);
-
-        if (gi == self.font.glyphs.end())
-            return;
-
-        const auto& glyph = gi->second;
-
-        blit_bitmap(self.screen, to_x, to_y, fgc, glyph);
-
-    }
-};
-
-
-
-struct Screen {
-
-    SDL_Window* window;
-    SDL_Surface* screen;
-
-    Tiler<uint32_t> tiler;
-
-    bdf::Font font;
 
     unsigned int tw;
     unsigned int th;
-
     unsigned int sw;
     unsigned int sh;
 
-    bool done;
+    QImage screen;
 
-    // In the unlikely event that someone is reading this:
-    // SDL is a massive piece of shit.
-    // Why doesn't a sane cross-platform frame-buffer library exist?
-    // I don't need your half-assed thin API over OpenGL, I need access to pixels.
+    typedef uint32_t pixel_t;
 
     struct indexed_bitmap {
         struct layer {
-            SDL_Color color;
+            uint8_t r;
+            uint8_t g;
+            uint8_t b;
             bdf::bitmap bitmap;
         };
 
@@ -230,98 +59,42 @@ struct Screen {
 
     const std::unordered_map<uint32_t, uint32_t>& tile_mapping;
 
-    Screen(const config::Config& cfg) : 
-        window(NULL), screen(NULL), 
+    Tiler(config::Config& _cfg):
         tw(cfg.tile_width), th(cfg.tile_height), 
-        sw(cfg.screen_width), sh(cfg.screen_height), 
-        done(false), 
-        tile_mapping(cfg.tile_mapping)
-    {
+        sw(cfg.screen_width), sh(cfg.screen_height) {
 
-        SDL_Surface* rtiles = NULL;
+        if (!cfg.tiles.empty()) {
 
-        try {
+            QImage rtiles(cfg.tiles);
 
-            if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER) < 0)
-                throw std::runtime_error("Could not init SDL");
+            surface_to_indexed(rtiles, tw, th, tiles);
+        }
 
-            window = SDL_CreateWindow("tiletel",
-                                      SDL_WINDOWPOS_UNDEFINED,
-                                      SDL_WINDOWPOS_UNDEFINED,
-                                      tw*sw, th*sh,
-                                      SDL_WINDOW_RESIZABLE|SDL_WINDOW_HIDDEN|
-                                      (cfg.fullscreen ? SDL_WINDOW_FULLSCREEN : 0));
+        auto fi = cfg.fonts.rbegin();
 
-            if (window == NULL)
-                throw std::runtime_error("Could not create window.");
+        if (fi == cfg.fonts.rend())
+            throw std::runtime_error("At least one font needs to be specified!");
 
-            screen = SDL_GetWindowSurface(window);
+        bdf::parse_bdf(*fi, font);
 
-            if (screen == NULL)
-                throw std::runtime_error("Could not create window surface");
+        if (font.h != th)
+            throw std::runtime_error("Font size does not match tile size: " + *fi);
 
-            if (screen->format->BytesPerPixel != 4) {
-                throw std::runtime_error("Window surface has unsupported bytes per pixel. (Wanted 4)");
-            }
+        ++fi;
+        while (fi != cfg.fonts.rend()) {
+            bdf::Font font_tmp;
+            bdf::parse_bdf(*fi, font_tmp);
 
-            if (!cfg.tiles.empty()) {
-
-                if (IMG_Init(IMG_INIT_PNG) == 0)
-                    throw std::runtime_error("Could not init SDL_Image");
-
-                rtiles = IMG_Load(cfg.tiles.c_str());
-
-                if (rtiles == NULL)
-                    throw std::runtime_error("Failed to load tiles bitmap: '" + cfg.tiles + "'");
-
-                surface_to_indexed(rtiles, tw, th, tiles);
-
-                SDL_FreeSurface(rtiles);
-                rtiles = NULL;
-            }
-
-            auto fi = cfg.fonts.rbegin();
-
-            if (fi == cfg.fonts.rend())
-                throw std::runtime_error("At least one font needs to be specified!");
-
-            bdf::parse_bdf(*fi, font);
-
-            if (font.h != th)
+            if (font_tmp.h != th)
                 throw std::runtime_error("Font size does not match tile size: " + *fi);
 
-            ++fi;
-            while (fi != cfg.fonts.rend()) {
-                bdf::Font font_tmp;
-                bdf::parse_bdf(*fi, font_tmp);
-
-                if (font_tmp.h != th)
-                    throw std::runtime_error("Font size does not match tile size: " + *fi);
-
-                for (auto& g : font_tmp.glyphs) {
-                    font.glyphs[g.first].swap(g.second);
-                }
-                ++fi;
+            for (auto& g : font_tmp.glyphs) {
+                font.glyphs[g.first].swap(g.second);
             }
-
-
-        } catch (...) {
-
-            if (rtiles != NULL)
-                SDL_FreeSurface(rtiles);
-
-            if (window != NULL)
-                SDL_DestroyWindow(window);
-
-            SDL_Quit();
-            throw;
+            ++fi;
         }
-    }
 
-    ~Screen() {
-
-        SDL_DestroyWindow(window);
-        SDL_Quit();
+        screen = QImage(tw*sw, th*sh, QImage::Format_RGB32);
     }
 
     static void print_bitmap(uint32_t ix, const bdf::bitmap& bitmap) {
@@ -350,34 +123,29 @@ struct Screen {
     }
 
 
-    static void surface_to_indexed(SDL_Surface* s, unsigned int tw, unsigned int th,
+    static void surface_to_indexed(const QImage& s, unsigned int tw, unsigned int th,
                                    std::unordered_map<uint32_t, indexed_bitmap>& out) {
 
-        if ((s->w % tw) != 0 || (s->h % th) != 0) {
+        if ((s.width() % tw) != 0 || (s.height() % th) != 0) {
 
             throw std::runtime_error("Size of tiles image does not match tile size");
         }
 
-        if (!SDL_ISPIXELFORMAT_INDEXED(s->format->format))
+        if (s.format() != QImage::Format_Indexed8)
             throw std::runtime_error("Only indexed (i.e., colormap or palette) tiles are supported");
-
-        if (s->format->BitsPerPixel != 8)
-            throw std::runtime_error("Sanity error: SDL BitsPerPixel should be 8");
-
-        SDL_Palette* palette = s->format->palette;
 
         indexed_bitmap base;
 
         std::unordered_map<uint32_t, size_t> colormap;
 
-        for (int ci = 0; ci < palette->ncolors; ++ci) {
+        for (int ci = 0; ci < s.colorCount(); ++ci) {
 
-            const SDL_Color& color = palette->colors[ci];
+            QRgb color = s.color(ci);
 
-            if (color.a == 0x00)
+            if (qAlpha(color) == 0x00)
                 continue;
 
-            uint32_t colorhash = (color.r << 24) | (color.g << 16) | (color.b << 8) | (color.a);
+            uint32_t colorhash = (qRed(color) << 24) | (qGreen(color) << 16) | (qBlue(color) << 8) | (qAlpha(color));
 
             if (colormap.count(colorhash) != 0)
                 continue;
@@ -386,14 +154,16 @@ struct Screen {
             base.layers.resize(base.layers.size() + 1);
             auto& l = base.layers.back();
 
-            l.color = color;
+            l.r = qRed(color);
+            l.g = qGreen(color);
+            l.b = qBlue(color);
             l.bitmap.w = tw;
             l.bitmap.make_pitch();
             l.bitmap.bm.resize(l.bitmap.pitch * th);
         }
 
-        unsigned int numtw = s->w / tw;
-        unsigned int numth = s->h / th;
+        unsigned int numtw = s.width() / tw;
+        unsigned int numth = s.height() / th;
 
         for (unsigned int tyy = 0; tyy < numth; ++tyy) {
             for (unsigned int txx = 0; txx < numtw; ++txx) {
@@ -403,17 +173,12 @@ struct Screen {
                 out[which] = base;
                 indexed_bitmap& what = out[which];
 
-                uint8_t* pixels0 = (uint8_t*)s->pixels + (tyy * th) * s->pitch + (txx * tw);
-
                 for (unsigned int yy = 0; yy < th; ++yy) {
-
-                    uint8_t* pixels = pixels0 + (yy * s->pitch);
-
                     for (unsigned int xx = 0; xx < tw; ++xx, ++pixels) {
 
-                        uint8_t colorix = *pixels;
-                        const SDL_Color& color = palette->colors[colorix];
-                        uint32_t colorhash = (color.r << 24) | (color.g << 16) | (color.b << 8) | (color.a);
+                        int colorix = s.pixelIndex(txx*tw + xx, tyy*th + yy);
+                        QRgb color = s.color(colorix);
+                        uint32_t colorhash = (qRed(color) << 24) | (qGreen(color) << 16) | (qBlue(color) << 8) | (qAlpha(color));
 
                         auto tmp = colormap.find(colorhash);
 
@@ -475,94 +240,285 @@ struct Screen {
         }
     }
 
+    inline pixel_t map_color(uint8_t r, uint8_t g, uint8_t b) {
+        uint32_t _r = 0xFF000000 | (r << 16) | (g << 8) | b;
+        return (pixel_t)_r;
+    }
+
+    inline pixel_t color_mul(uint8_t cr, uint8_t cg, uint8_t cb, uint8_t r, uint8_t g, uint8_t b) {
+        return map_color(((r*cr)/256), ((g*cg)/256), ((b*cb)/256));
+    }
+
+    inline pixel_t color_screen(uint8_t cr, uint8_t cg, uint8_t cb, uint8_t r, uint8_t g, uint8_t b) {
+        return map_color(256 - (((256-r)*(256-cr))/256.0), 
+                         256 - (((256-g)*(256-cg))/256.0), 
+                         256 - (((256-b)*(256-cb))/256.0));
+    }
+
+    inline pixel_t color_avg(uint8_t cr, uint8_t cg, uint8_t cb, uint8_t r, uint8_t g, uint8_t b) {
+        return map_color(screen, ((r+cr)/2), ((g+cg)/2), ((b+cb)/2));
+    }
+
+    inline pixel_t* cursor(unsigned char* pixels, unsigned int pitch, unsigned int x, unsigned int y) {
+        return (pixel_t*)((uint8_t*)pixels + (y * pitch) + (x * sizeof(pixel_t)));
+    }
+
+    inline void set_pixel(unsigned char* pixels, unsigned int pitch, unsigned int x, unsigned int y, pixel_t color) {
+        *cursor(pixels, pitch, x, y) = color;
+    }
+
+    inline void fill_rect(unsigned char* pixels, unsigned int pitch, 
+                          unsigned int to_x, unsigned int to_y, 
+                          unsigned int to_w, unsigned int to_h, pixel_t bgc) {
+
+        for (unsigned int yy = to_y; yy < to_h + to_y; ++yy) {
+
+            pixel_t* px = cursor(pixels, pitch, to_x, yy);
+
+            for (unsigned int xx = 0; xx < to_w; ++xx, ++px) {
+                *px = bgc;
+            }
+        }
+    }
+
+    inline void blit_bitmap(unsigned char* pixels, unsigned int pitch, 
+                            unsigned int to_x, unsigned int to_y,
+                            pixel_t fgc, const bdf::bitmap& bitmap) {
+
+        unsigned int xx = 0;
+        unsigned int yy = 0;
+
+        for (uint8_t v : bitmap.bm) {
+
+            if (v == 0) {
+                xx += 8;
+
+                if (xx >= bitmap.w) {
+                    xx = 0;
+                    ++yy;
+                }
+                continue;
+            }
+
+            pixel_t* px = cursor(pixels, pitch, to_x + xx, to_y + yy);
+
+            for (int bit = 7; bit >= 0; --bit) {
+
+                if (v & (1 << bit)) 
+                    *px = fgc;
+
+                ++xx;
+                ++px;
+
+                if (xx >= bitmap.w) {
+                    xx = 0;
+                    ++yy;
+                    break;
+                }
+            }
+        }
+    }
+
 
     void tile(unsigned int x, unsigned int y, 
               uint32_t ti, unsigned int cwidth, bool inverse,
               uint8_t fr, uint8_t fg, uint8_t fb,
               uint8_t br, uint8_t bg, uint8_t bb) {
 
-        tiler.tile(*this, x, y, ti, cwidth, inverse, fr, fg, fb, br, bg, bb);
+        if (ti == 0xfffd) {
+            return;
+        }
+
+        if (x >= self.sw || y >= self.sh)
+            throw std::runtime_error("Invalid screen offset in tile()");
+
+        unsigned int to_x = x * self.tw;
+        unsigned int to_y = y * self.th;
+        unsigned int to_w = self.tw * cwidth;
+        unsigned int to_h = self.th;
+
+        if (inverse) {
+            uint8_t tr = br;
+            uint8_t tg = bg;
+            uint8_t tb = bb;
+            br = fr;
+            bg = fg;
+            bb = fb;
+            fr = tr;
+            fg = tg;
+            fb = tb;
+        }
+
+        pixel_t fgc = map_color(fr, fg, fb);
+        pixel_t bgc = map_color(br, bg, bb);
+
+        int pitch = screen.bytesPerLine();
+        unsigned char* pixels = screen.bits();
+
+        fill_rect(pixels, pitch, to_x, to_y, to_w, to_h, bgc);
+
+        // Draw pixel tiles.
+        if (!tiles.empty()) {
+
+            auto tmi = tile_mapping.find(ti);
+
+            if (tmi != tile_mapping.end()) {
+
+                uint32_t pixi = tmi->second;
+
+                for (unsigned int cwi = 0; cwi < cwidth; ++cwi, ++pixi, to_x += tw) {
+
+                    auto tmpi = tiles.find(pixi);
+                    if (tmpi == tiles.end())
+                        return;
+
+                    for (const auto& l : tmpi->second.layers) {
+                        pixel_t fgp = color_mul(l.r, l.g, l.b, fr, fg, fb);
+                        blit_bitmap(pixels, pitch, to_x, to_y, fgp, l.bitmap);
+                    }
+                }
+
+                return;
+            }
+        }
+
+        // Or else draw font bitmaps.
+
+        auto gi = font.glyphs.find(ti);
+
+        if (gi == font.glyphs.end())
+            return;
+
+        const auto& glyph = gi->second;
+
+        blit_bitmap(pixels, pitch, to_x, to_y, fgc, glyph);
     }
 
+    void resize(unsigned int w, unsigned int h) {
 
-    template <typename PROTOCOL>
-    void handle_event(const SDL_Event& e, PROTOCOL& proto) {
-
-        switch (e.type) {
-
-        case SDL_QUIT:
-            done = true;
-            break;
-
-        case SDL_WINDOWEVENT:
-            if (e.window.event == SDL_WINDOWEVENT_RESIZED) {
-
-                sw = e.window.data1/tw;
-                sh = e.window.data2/th;
-
-                screen = SDL_GetWindowSurface(window);
-
-                proto.resizer(sw, sh);
-
-            }
-            break;
-
-        case SDL_KEYDOWN:
-        {
-            auto& c = e.key.keysym;
-            if (c.mod & ~(KMOD_SHIFT) || c.sym < ' ' || c.sym > '~') {
-                proto.keypressor(e.key.keysym);
-            }
-            break;
-        }
-
-        case SDL_TEXTINPUT:
-        {
-            const char* text = e.text.text;
-            bool notmine = (text[0] != '\0' && text[1] == '\0' && (text[0] < ' ' || text[0] > '~'));
-
-            if (!notmine) {
-                proto.textor(text);
-            }
-            break;
-        }
-
-        default:
-            break;
-        }
-    }
-
-    template <typename PROTOCOL>
-    void mainloop(PROTOCOL& proto) {
-
-        // This mind-numbing, pants-on-head retarded idiocy is because SDL 
-        // doesn't play nice with tiling window managers.
-        bool first = false;
-
-        SDL_Event event;
-
-        while (!done) {
-
-            done = proto.multiplexor();
-
-            if (SDL_UpdateWindowSurface(window) < 0)
-                throw std::runtime_error("Failed to update window surface");
-
-            while (SDL_PollEvent(&event)) {
-                handle_event(event, proto);
-            }
-
-            if (!first) {
-                SDL_ShowWindow(window);
-                first = true;
-            }
-        }
+        sw = w / tw;
+        sh = h / th;
+        screen = QImage(w, h, QImage::Format_RGB32);
     }
 };
 
 
+template <typename PROTO>
+class RasterWindow : public QWindow {
+
+public:
+
+    PROTO& protocol;
+    bool done;
+
+    QBackingStore backingStore;
+
+    config::Config& cfg;
+    Tiler tiler;
+
+    explicit RasterWindow(PROTO& p, config::Config& _cfg, QWindow* parent = 0) : 
+        QWindow(parent), 
+        protocol(p),
+        done(false),
+        backingStore(this),
+        cfg(_cfg), 
+        tiler(cfg) {
+
+        create();
+
+        unsigned int ww = tiler.tw*tiler.sw;
+        unsigned int hh = tiler.th*tiler.sh;
+
+        resize(ww, hh);
+        backingStore.resize(QSize(ww, hh));
+    }
+
+    void renderNow() {
+
+        if (!isExposed())
+            return;
+
+        render();
+
+        QRect rect(0, 0, width(), height());
+        backingStore.beginPaint(rect);
+
+        QPaintDevice* device = backingStore.paintDevice();
+        QPainter painter(device);
+
+        painter.drawImage(0, 0, tiler.screen);
+
+        backingStore.endPaint();
+        backingStore.flush(rect);
+    }
+
+    bool event(QEvent* event) {
+
+        if (event->type() == QEvent::UpdateRequest) {
+            renderNow();
+            return true;
+
+        } else if (event->type() == QEvent::KeyPress) {
+            keyEvent((QKeyEvent*)event);
+            return true;
+
+        } else if (event->type() == QEvent::Close) {
+            done = true;
+            return true;
+        }
+
+        return QWindow::event(event);
+    }
+
+    void resizeEvent(QResizeEvent* event) {
+
+        const auto& s = event->size();
+
+        tiler.resize(s.width(), s.height());
+
+        backingStore.resize(s);
+
+        if (isExposed())
+            renderNow();
+
+        protocol.resizer(tiler.sw, tiler.sh);
+    }
+
+    void exposeEvent(QExposeEvent* event) {
+
+        if (isExposed()) {
+            renderNow();
+        }
+    }
+
+    void keyEvent(QKeyEvent* event) {
+
+        if (event->text.size() == 0) {
+            protocol.keypressor(event->key());
+
+        } else {
+            protocol.keypressor(event->text().toUcs4());
+        }
+    }
+
+    void mainloop(QGuiApplication& app) {
+
+        while (!done) {
+
+            done = protocol.multiplexor();
+
+            app.processEvents();
+        }
+    }
+};
+
+// Horrible !!HACK!!
+
+static Tiler* GLOBAL_TILER = NULL;
+
+
 void tsm_logger_cb(void* data, const char* file, int line, const char* func, const char* subs,
-             unsigned int sev, const char* format, va_list args) {
+                   unsigned int sev, const char* format, va_list args) {
 
     fprintf(stderr, "%d: %s: ", sev, subs);
     vfprintf(stderr, format, args);
@@ -585,7 +541,7 @@ int tsm_drawer_cb(struct tsm_screen* screen, uint32_t id, const uint32_t* ch, si
         return 0;
     }
 
-    Screen* draw = (Screen*)data;
+    Tiler* tiler = (Tiler*)data;
 
     for (unsigned int i = 0; i < len; i += cwidth) {
         uint32_t c = ch[i];
@@ -597,9 +553,9 @@ int tsm_drawer_cb(struct tsm_screen* screen, uint32_t id, const uint32_t* ch, si
 
     if (len == 0) {
         for (unsigned int j = 0; j < cwidth; ++j) {
-            draw->tile(posx+j, posy, (uint32_t)' ', 1, attr->inverse,
-                       attr->fr, attr->fg, attr->fb,
-                       attr->br, attr->bg, attr->bb);
+            tiler->tile(posx+j, posy, (uint32_t)' ', 1, attr->inverse,
+                        attr->fr, attr->fg, attr->fb,
+                        attr->br, attr->bg, attr->bb);
         }
     }
 
@@ -612,13 +568,12 @@ struct VTE {
     tsm_screen* screen;
     tsm_vte* vte;
 
-    Screen& draw;
     SOCKET& socket;
 
     unsigned int sw;
     unsigned int sh;
     
-    VTE(Screen& d, SOCKET& s) : screen(NULL), vte(NULL), draw(d), socket(s), sw(d.sw), sh(d.sh)
+    VTE(SOCKET& s) : screen(NULL), vte(NULL), draw(d), socket(s), sw(d.sw), sh(d.sh)
     {
 
         try {
@@ -662,7 +617,7 @@ struct VTE {
     void redraw() {
 
         //tsm_age_t age =
-        tsm_screen_draw(screen, tsm_drawer_cb, &draw);
+        tsm_screen_draw(screen, tsm_drawer_cb, GLOBAL_TILER);
     }
 
     void set_palette(const std::string& palette) {
@@ -685,56 +640,20 @@ struct VTE {
 
 struct Socket {
 
-    TCPsocket socket;
-    SDLNet_SocketSet poller;
+    QTcpSocket socket;
 
     bool compression;
     std::string compression_leftover;
     lz77::decompress_t decompressor;
 
-    Socket(const std::string& host, unsigned int port) : socket(NULL), compression(false) {
+    Socket(const std::string& host, unsigned int port) : compression(false) {
 
-        try {
-
-            if (SDLNet_Init() < 0)
-                throw std::runtime_error("Could not init network");
-
-            IPaddress addr;
-
-            if (SDLNet_ResolveHost(&addr, host.c_str(), port) < 0) 
-                throw std::runtime_error("No such host: " + host);
-
-            socket = SDLNet_TCP_Open(&addr);
-
-            if (socket == NULL)
-                throw std::runtime_error("Could not open connection to " + host);
-
-            poller = SDLNet_AllocSocketSet(1);
-
-            if (poller == NULL)
-                throw std::runtime_error("Could not allocate socket set");
-
-            SDLNet_TCP_AddSocket(poller, socket);
-
-        } catch (...) {
-
-            if (socket != NULL)
-                SDLNet_TCP_Close(socket);
-
-            SDLNet_Quit();
-            throw;
-        }
-    }
-
-    ~Socket() {
-
-        SDLNet_TCP_Close(socket);
-        SDLNet_Quit();
+        socket.connectToHost(host, port);
     }
 
     bool recv_raw(std::string& out) {
 
-        int i = SDLNet_TCP_Recv(socket, (char*)out.data(), out.size());
+        int i = socket.read((char*)out.data(), out.size());
 
         if (i < 0)
             throw std::runtime_error("Error receiving data");
@@ -778,7 +697,7 @@ struct Socket {
 
     void send(const std::string& in) {
 
-        int i = SDLNet_TCP_Send(socket, (char*)in.data(), in.size());
+        int i = socket.write((char*)in.data(), in.size());
 
         if (i != (int)in.size())
             throw std::runtime_error("Error sending data");
@@ -786,7 +705,7 @@ struct Socket {
 
     void send(const char* data, size_t len) {
 
-        int i = SDLNet_TCP_Send(socket, data, len);
+        int i = socket.write(data, len);
 
         if (i != (int)len)
             throw std::runtime_error("Error sending data");
@@ -798,7 +717,7 @@ struct Socket {
             return true;
         }
 
-        return SDLNet_CheckSockets(poller, wait);
+        return socket.waitForReadyRead(wait);
     }
 };
 
@@ -976,7 +895,7 @@ struct Protocol_Base {
     }
 
     // Feeds raw keypress data to the terminal emulator.
-    void keypressor(const SDL_Keysym& k) {
+    void keypressor(int key) {
 
         unsigned char key = (k.sym > 127 ? '?' : k.sym);
 
@@ -1481,15 +1400,16 @@ int main(int argc, char** argv) {
             cfg.tiles.clear();
         }
 
+
+        QGuiApplication app(argc, argv);
+
 #ifdef HAVE_PTY_SUPPORT
 
         if (cfg.command.size() > 0) {
 
             Process proc(cfg.command);
 
-            Screen screen(cfg);
-
-            VTE<Process> vte(screen, proc);
+            VTE<Process> vte(proc);
 
             if (cfg.palette.size() > 0) {
                 vte.set_palette(cfg.palette);
@@ -1499,18 +1419,22 @@ int main(int argc, char** argv) {
 
             Protocol_Pty<Process> protocol(vte, cfg.polling_rate, cfg.compression);
 
-            protocol.resizer(screen.sw, screen.sh);
+            RasterWindow screen(protocol, cfg);
+            screen.show();
+            GLOBAL_TILER = &(screen.tiler);
+
+            protocol.resizer(screen.tiler.sw, screen.tiler.sh);
         
-            screen.mainloop(protocol);
-            
+            screen.mainloop(app);
+
+            app.exit();
+
             return 0;
         }
 
 #endif
 
         Socket sock(cfg.host, cfg.port);
-
-        Screen screen(cfg);
 
         VTE<Socket> vte(screen, sock);
 
@@ -1522,8 +1446,13 @@ int main(int argc, char** argv) {
 
         Protocol_Telnet<Socket> protocol(vte, cfg.polling_rate, cfg.compression);
         
-        screen.mainloop(protocol);
+        RasterWindow screen(protocol, cfg);
+        screen.show();
+        GLOBAL_TILER = &(screen.tiler);
 
+        screen.mainloop(app);
+
+        app.exit();
 
     } catch (std::exception& e) {
         std::cout << "Fatal Error: " << e.what() << std::endl;
