@@ -96,7 +96,13 @@ protected:
 
     void resizeEvent(QResizeEvent* event) {
 
-        m_backingStore->resize(event->size());
+        const auto& s = event->size();
+
+        sw = s.width % tw;
+        sh = s.height % th;
+
+        m_backingStore->resize(sw*tw, sh*th);
+
         if (isExposed())
             renderNow();
     }
