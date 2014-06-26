@@ -99,8 +99,10 @@ struct Tiler {
         }
 
         screen = QImage(tw*sw, th*sh, QImage::Format_RGB32);
-    }
 
+        screen.fill(QColor(0, 0, 0));
+    }
+    
     static void print_bitmap(uint32_t ix, const bdf::bitmap& bitmap) {
 
         unsigned int x = 0;
@@ -182,7 +184,8 @@ struct Tiler {
 
                         int colorix = s.pixelIndex(txx*tw + xx, tyy*th + yy);
                         QRgb color = s.color(colorix);
-                        uint32_t colorhash = (qRed(color) << 24) | (qGreen(color) << 16) | (qBlue(color) << 8) | (qAlpha(color));
+                        uint32_t colorhash = ((qRed(color) << 24) | (qGreen(color) << 16) | 
+                                              (qBlue(color) << 8) | (qAlpha(color)));
 
                         auto tmp = colormap.find(colorhash);
 
@@ -403,6 +406,7 @@ struct Tiler {
         sw = w / tw;
         sh = h / th;
         screen = QImage(w, h, QImage::Format_RGB32);
+        screen.fill(QColor(0, 0, 0));
     }
 };
 
@@ -442,6 +446,8 @@ public:
         if (!isExposed())
             return;
 
+        std::cout << "Render!" << std::endl;
+
         QRect rect(0, 0, width(), height());
         backingStore.beginPaint(rect);
 
@@ -475,14 +481,16 @@ public:
 
         const auto& s = event->size();
 
+        std::cout << "Resize! " << s.width() << " " << s.height() << std::endl;
+
         tiler.resize(s.width(), s.height());
 
         backingStore.resize(s);
 
+        protocol.resizer(tiler.sw, tiler.sh);
+
         if (isExposed())
             renderNow();
-
-        protocol.resizer(tiler.sw, tiler.sh);
     }
 
     void exposeEvent(QExposeEvent* event) {
@@ -503,8 +511,12 @@ public:
     }
 
     void readyRead() {
+        std::cout << "readyRead" << std::endl;
         done = protocol.multiplexor();
         renderNow();
+
+        if (done)
+            QGuiApplication::quit();
     }
 
 };
@@ -610,6 +622,8 @@ struct VTE {
 
     void redraw() {
 
+        std::cout << "term_screen_draw" << std::endl;
+
         //tsm_age_t age =
         tsm_screen_draw(screen, tsm_drawer_cb, GLOBAL_TILER);
     }
@@ -643,6 +657,9 @@ struct Socket {
     Socket(const std::string& host, unsigned int port) : compression(false) {
 
         socket.connectToHost(QString(host.c_str()), port);
+
+        if (!socket.waitForConnected(-1))
+            throw std::runtime_error("Could not connect to " + host);
     }
 
     bool recv_raw(std::string& out) {
@@ -660,9 +677,10 @@ struct Socket {
         return true;
     }
 
-    bool recv(std::string& out) {
+    bool recv(std::string& out, bool& more) {
 
         bool ret = true;
+        more = false;
 
         if (compression_leftover.size() > 0) {
             out.swap(compression_leftover);
@@ -686,6 +704,8 @@ struct Socket {
 
         out.swap(decompressor.result());
 
+        more = (compression_leftover.size() > 0);
+
         return ret;
     }
 
@@ -694,7 +714,8 @@ struct Socket {
         int i = socket.write((char*)in.data(), in.size());
 
         if (i != (int)in.size())
-            throw std::runtime_error("Error sending data");
+            QGuiApplication::quit();
+            //throw std::runtime_error("Error sending data");
     }
 
     void send(const char* data, size_t len) {
@@ -702,16 +723,8 @@ struct Socket {
         int i = socket.write(data, len);
 
         if (i != (int)len)
-            throw std::runtime_error("Error sending data");
-    }
-
-    bool poll(unsigned int wait = 100) {
-
-        if (compression_leftover.size() > 0) {
-            return true;
-        }
-
-        return socket.waitForReadyRead(wait);
+            QGuiApplication::quit();
+            //throw std::runtime_error("Error sending data");
     }
 };
 
@@ -721,7 +734,6 @@ struct Process {
 
     int fd;
     pid_t pid;
-    struct pollfd poller;
 
     Process(const std::vector<std::string>& cmd) {
 
@@ -732,9 +744,6 @@ struct Process {
 
         if (pid < 0)
             throw std::runtime_error("Could not forkpty()");
-
-        poller.fd = fd;
-        poller.events = POLLIN;
 
         if (pid == 0) {
 
@@ -765,7 +774,9 @@ struct Process {
         close(fd);
     }
 
-    bool recv(std::string& out) {
+    bool recv(std::string& out, bool& more) {
+
+        more = false;
 
         ssize_t i = read(fd, (char*)out.data(), out.size());
 
@@ -795,16 +806,6 @@ struct Process {
 
         if (i != (int)len)
             throw std::runtime_error("Error writing data");
-    }
-
-    bool poll(unsigned int wait = 100) {
-
-        int r = ::poll(&poller, 1, wait);
-
-        if (r < 0)
-            throw std::runtime_error("Error in poll()");
-
-        return (r != 0);
     }
 };
 
@@ -1055,9 +1056,6 @@ struct Protocol_Telnet : public Protocol_Base<SOCKET> {
         static std::string buff;
         static std::string rewritten;
 
-        if (!vte.socket.poll(polltimeout))
-            return false;
-
         enum {
             STREAM,
             IAC,
@@ -1069,11 +1067,13 @@ struct Protocol_Telnet : public Protocol_Base<SOCKET> {
             SB_IAC
         } telnetstate = STREAM;
 
+        bool more;
+
         while (1) {
 
             buff.resize(16*1024);
 
-            if (!vte.socket.recv(buff)) {
+            if (!vte.socket.recv(buff, more)) {
 
                 return true;
             }
@@ -1196,6 +1196,8 @@ struct Protocol_Telnet : public Protocol_Base<SOCKET> {
         buff.clear();
         rewritten.clear();
 
+        if (more) return multiplexor();
+
         return false;
     }
 };
@@ -1218,6 +1220,7 @@ struct Protocol_Pty : public Protocol_Base<SOCKET> {
         ws.ws_col = sw;
         ws.ws_row = sh;
         
+        std::cout << "send_resize" << std::endl;
         ioctl(vte.socket.fd, TIOCSWINSZ, &ws);
     }
 
@@ -1232,13 +1235,11 @@ struct Protocol_Pty : public Protocol_Base<SOCKET> {
 
         static std::string buff;
 
-        if (!vte.socket.poll(polltimeout)) {
-            return false;
-        }
+        bool more;
 
         buff.resize(16*1024);
 
-        if (!vte.socket.recv(buff)) {
+        if (!vte.socket.recv(buff, more)) {
             return true;
         }
 
@@ -1246,6 +1247,8 @@ struct Protocol_Pty : public Protocol_Base<SOCKET> {
         vte.redraw();
 
         buff.clear();
+
+        if (more) return multiplexor();
 
         return false;
     }
