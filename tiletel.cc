@@ -466,7 +466,6 @@ public:
 
         } else if (event->type() == QEvent::Close) {
             done = true;
-            return true;
         }
 
         return QWindow::event(event);
@@ -503,17 +502,11 @@ public:
         }
     }
 
-    void mainloop(QGuiApplication& app) {
-
-        while (!done) {
-
-            done = protocol.multiplexor();
-
-            app.processEvents();
-
-            renderNow();
-        }
+    void readyRead() {
+        done = protocol.multiplexor();
+        renderNow();
     }
+
 };
 
 // Horrible !!HACK!!
@@ -1367,10 +1360,11 @@ int main(int argc, char** argv) {
             GLOBAL_TILER = &(screen.tiler);
 
             protocol.resizer(screen.tiler.sw, screen.tiler.sh);
-        
-            screen.mainloop(app);
 
-            app.exit();
+            QSocketNotifier notify(proc.fd, QSocketNotifier::Read);
+            QObject::connect(&notify, &QSocketNotifier::activated, &screen, &RasterWindow< Protocol_Pty<Process> >::readyRead);
+        
+            app.exec();
 
             return 0;
         }
@@ -1395,9 +1389,9 @@ int main(int argc, char** argv) {
 
         protocol.resizer(screen.tiler.sw, screen.tiler.sh);
 
-        screen.mainloop(app);
+        QObject::connect(&sock.socket, &QTcpSocket::readyRead, &screen, &RasterWindow< Protocol_Telnet<Socket> >::readyRead);
 
-        app.exit();
+        app.exec();
 
     } catch (std::exception& e) {
         std::cout << "Fatal Error: " << e.what() << std::endl;
