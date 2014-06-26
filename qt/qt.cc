@@ -8,6 +8,25 @@
 #include "bdf.h"
 #include "config.h"
 
+
+#include <sys/time.h>
+
+struct bm {
+    struct timeval b;
+    std::string msg;
+    bm(const std::string& s) : msg(s) {
+        gettimeofday(&b, NULL);
+    }
+    ~bm() {
+        struct timeval e;
+        gettimeofday(&e, NULL);
+        size_t a = (e.tv_sec*1e6 + e.tv_usec);
+        size_t q = (b.tv_sec*1e6 + b.tv_usec);
+        std::cout << msg << ": " << ((double)a-(double)q)/1e6 << std::endl;
+    }
+};
+
+
 class RasterWindow : public QWindow {
 
 //    Q_OBJECT
@@ -36,22 +55,30 @@ public:
         create();
 
         resize(tw*sw, th*sh);
-        m_backingStore->resize(tw*sw, th*sh);
+        m_backingStore->resize(QSize(tw*sw, th*sh));
     }
 
     virtual void render(QPainter* painter) {
-        //painter->drawText(QRectF(0, 0, width(), height()), Qt::AlignCenter, QStringLiteral("QWindow"));
 
-        QColor bgc(0, 0, 0);
-        QColor fgc(0, 0xFF, 0xFF);
-
-        painter->fillRect(50, 50, 8, 16, bgc);
+        bm _r("render");
 
         const auto& glyph = font.glyphs['&'];
 
         QBitmap bm = QBitmap::fromData(QSize(glyph.w, font.h), &(glyph.bm[0]), QImage::Format_Mono);
 
-        painter->drawPixmap(58, 50, bm);
+        QColor bgc(0, 0, 0);
+        QColor fgc(0xFF, 0x0F, 0x0F);
+
+        for (unsigned int y = 0; y < sh; ++y) {
+            for (unsigned int x = 0; x < sw; ++x) {
+
+                painter->fillRect(x*tw, y*th, tw, th, bgc);
+
+                painter->setPen(fgc);
+
+                painter->drawPixmap(x*tw, y*th, bm);
+            }
+        }
     }
 
 public slots:
@@ -98,10 +125,10 @@ protected:
 
         const auto& s = event->size();
 
-        sw = s.width % tw;
-        sh = s.height % th;
+        sw = s.width() / tw;
+        sh = s.height() / th;
 
-        m_backingStore->resize(sw*tw, sh*th);
+        m_backingStore->resize(s);
 
         if (isExposed())
             renderNow();
