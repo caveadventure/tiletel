@@ -5,6 +5,8 @@
 #include <vector>
 #include <string>
 
+#include <unistd.h>
+
 #include "bdf.h"
 #include "config.h"
 
@@ -33,6 +35,10 @@ class RasterWindow : public QWindow {
 
 public:
 
+    bool done;
+
+    QBackingStore backingStore;
+
     config::Config& cfg;
 
     unsigned int tw;
@@ -40,73 +46,137 @@ public:
     unsigned int sw;
     unsigned int sh;
 
+    QImage screen;
+
     bdf::Font font;
     
     explicit RasterWindow(config::Config& _cfg, QWindow* parent = 0) : 
         QWindow(parent), 
+        done(false),
+        backingStore(this),
         cfg(_cfg), 
         tw(cfg.tile_width), th(cfg.tile_height), 
-        sw(cfg.screen_width), sh(cfg.screen_height), 
-        m_update_pending(false) {
+        sw(cfg.screen_width), sh(cfg.screen_height) {
 
         bdf::parse_bdf(cfg.fonts.front(), font);
 
-        m_backingStore = new QBackingStore(this);
         create();
 
         resize(tw*sw, th*sh);
-        m_backingStore->resize(QSize(tw*sw, th*sh));
+        backingStore.resize(QSize(tw*sw, th*sh));
+        screen = QImage(tw*sw, th*sh, QImage::Format_RGB32);
     }
 
-    virtual void render(QPainter* painter) {
+    typedef uint32_t pixel_t;
 
-        bm _r("render");
+    inline pixel_t map_color(uint8_t r, uint8_t g, uint8_t b) {
+        uint32_t _r = 0xFF000000 | (r << 16) | (g << 8) | b;
+        return (pixel_t)_r;
+    }
 
-        const auto& glyph = font.glyphs['&'];
+    inline pixel_t* cursor(unsigned char* pixels, unsigned int pitch, unsigned int x, unsigned int y) {
+        return (pixel_t*)((uint8_t*)pixels + (y * pitch) + (x * sizeof(pixel_t)));
+    }
 
-        QBitmap bm = QBitmap::fromData(QSize(glyph.w, font.h), &(glyph.bm[0]), QImage::Format_Mono);
+    inline void set_pixel(unsigned char* pixels, unsigned int pitch, unsigned int x, unsigned int y, pixel_t color) {
+        *cursor(pixels, pitch, x, y) = color;
+    }
 
-        QColor bgc(0, 0, 0);
-        QColor fgc(0xFF, 0x0F, 0x0F);
+    inline void fill_rect(unsigned char* pixels, unsigned int pitch, 
+                          unsigned int to_x, unsigned int to_y, 
+                          unsigned int to_w, unsigned int to_h, pixel_t bgc) {
 
-        for (unsigned int y = 0; y < sh; ++y) {
-            for (unsigned int x = 0; x < sw; ++x) {
+        for (unsigned int yy = to_y; yy < to_h + to_y; ++yy) {
 
-                painter->fillRect(x*tw, y*th, tw, th, bgc);
+            pixel_t* px = cursor(pixels, pitch, to_x, yy);
 
-                painter->setPen(fgc);
-
-                painter->drawPixmap(x*tw, y*th, bm);
+            for (unsigned int xx = 0; xx < to_w; ++xx, ++px) {
+                *px = bgc;
             }
         }
     }
 
-public slots:
+    inline void blit_bitmap(unsigned char* pixels, unsigned int pitch, 
+                            unsigned int to_x, unsigned int to_y,
+                            pixel_t fgc, const bdf::bitmap& bitmap) {
 
-    void renderLater() {
+        unsigned int xx = 0;
+        unsigned int yy = 0;
 
-        if (!m_update_pending) {
-            m_update_pending = true;
-            QCoreApplication::postEvent(this, new QEvent(QEvent::UpdateRequest));
+        for (uint8_t v : bitmap.bm) {
+
+            if (v == 0) {
+                xx += 8;
+
+                if (xx >= bitmap.w) {
+                    xx = 0;
+                    ++yy;
+                }
+                continue;
+            }
+
+            pixel_t* px = cursor(pixels, pitch, to_x + xx, to_y + yy);
+
+            for (int bit = 7; bit >= 0; --bit) {
+
+                if (v & (1 << bit)) 
+                    *px = fgc;
+
+                ++xx;
+                ++px;
+
+                if (xx >= bitmap.w) {
+                    xx = 0;
+                    ++yy;
+                    break;
+                }
+            }
         }
     }
+
+
+    virtual void render() {
+
+        bm _r("render");
+
+        int pitch = screen.bytesPerLine();
+        unsigned char* pixels = screen.bits();
+
+        pixel_t bgc = map_color(0, 0, 0);
+        pixel_t fgc = map_color(0xFF, 0x0F, 0x0F);
+
+        for (unsigned int y = 0; y < sh; ++y) {
+            for (unsigned int x = 0; x < sw; ++x) {
+
+                fill_rect(pixels, pitch, x*tw, y*th, tw, th, bgc);
+
+                const auto& glyph = font.glyphs['&'];
+
+                blit_bitmap(pixels, pitch, x*tw, y*th, fgc, glyph);
+            }
+        }
+    }
+
+public:
+
 
     void renderNow() {
 
         if (!isExposed())
             return;
 
-        QRect rect(0, 0, width(), height());
-        m_backingStore->beginPaint(rect);
+        render();
 
-        QPaintDevice *device = m_backingStore->paintDevice();
+        QRect rect(0, 0, width(), height());
+        backingStore.beginPaint(rect);
+
+        QPaintDevice* device = backingStore.paintDevice();
         QPainter painter(device);
 
-        painter.fillRect(0, 0, width(), height(), Qt::white);
-        render(&painter);
+        painter.drawImage(0, 0, screen);
 
-        m_backingStore->endPaint();
-        m_backingStore->flush(rect);
+        backingStore.endPaint();
+        backingStore.flush(rect);
     }
 
 protected:
@@ -114,10 +184,18 @@ protected:
     bool event(QEvent* event) {
 
         if (event->type() == QEvent::UpdateRequest) {
-            m_update_pending = false;
             renderNow();
             return true;
+
+        } else if (event->type() == QEvent::KeyPress) {
+            keyEvent((QKeyEvent*)event);
+            return true;
+
+        } else if (event->type() == QEvent::Close) {
+            done = true;
+            return true;
         }
+
         return QWindow::event(event);
     }
 
@@ -128,7 +206,8 @@ protected:
         sw = s.width() / tw;
         sh = s.height() / th;
 
-        m_backingStore->resize(s);
+        backingStore.resize(s);
+        screen = QImage(s, QImage::Format_RGB32);
 
         if (isExposed())
             renderNow();
@@ -141,10 +220,11 @@ protected:
         }
     }
 
-private:
+    void keyEvent(QKeyEvent* event) {
 
-    QBackingStore* m_backingStore;
-    bool m_update_pending;
+        std::cout << "Key: " << event->key() << " [" << event->text().toUtf8().constData() << "]" << std::endl;
+    }
+
 };
 
 
@@ -158,5 +238,13 @@ int main(int argc, char** argv) {
     RasterWindow window(cfg);
     window.show();
 
-    return app.exec();
+    while (!window.done) {
+        usleep(0.1);
+        app.processEvents();
+    }
+
+    app.exit();
+
+    return 0;
+    //return app.exec();
 }
