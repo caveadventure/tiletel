@@ -494,7 +494,7 @@ public:
     void keyEvent(QKeyEvent* event) {
 
         if (event->text.size() == 0) {
-            protocol.keypressor(event->key());
+            protocol.keypressor(event->key(), event->modifiers());
 
         } else {
             protocol.keypressor(event->text().toUcs4());
@@ -869,149 +869,136 @@ struct Protocol_Base {
     }
 
     // Feeds keyboard text input to the terminal emulator.
-    void textor(const std::string& utf) {
+    template <typename UCS>
+    void keypressor(const UCS& ucs) {
 
-        static tsm_utf8_mach* utf8_mach = NULL;
+        for (uint32_t glyph : utf) {
 
-        if (utf8_mach == NULL) {
-            tsm_utf8_mach_new(&utf8_mach);
-        }
-
-        tsm_utf8_mach_reset(utf8_mach);
-
-        for (char c : utf) {
-
-            int x = tsm_utf8_mach_feed(utf8_mach, c);
-
-            if (x == TSM_UTF8_ACCEPT) {
-
-                uint32_t glyph = tsm_utf8_mach_get(utf8_mach);
-                tsm_vte_handle_keyboard(vte.vte, XKB_KEY_NoSymbol, glyph, 0, glyph);
-
-            } else if (x == TSM_UTF8_REJECT) {
-                return;
-            }
+            tsm_vte_handle_keyboard(vte.vte, XKB_KEY_NoSymbol, glyph, 0, glyph);
         }
     }
 
     // Feeds raw keypress data to the terminal emulator.
-    void keypressor(int key) {
+    void keypressor(int key, Qt::KeyboardModifiers qmods) {
 
-        unsigned char key = (k.sym > 127 ? '?' : k.sym);
+        unsigned char key = (key > 127 ? '?' : key);
 
         if (key == 0)
             return;
 
         unsigned int mods = 0;
 
-        if (k.mod & KMOD_SHIFT) {
-            key = doshift(key);
+        if (qmods & Qt::ShiftModifier) {
             mods |= TSM_SHIFT_MASK;
         }
 
-        if (k.mod & KMOD_ALT) {
+        if (qmods & Qt::AltModifier) {
             mods |= TSM_ALT_MASK;
         }
 
-        if (k.mod & KMOD_CTRL) {
+        if (qmods & Qt::ControlModifier) {
             mods |= TSM_CONTROL_MASK;
         }
 
         uint32_t tsmsym = XKB_KEY_NoSymbol;
 
-        if (k.sym & SDLK_SCANCODE_MASK) {
-        
+        if (qmods & Qt::KeypadModifier) {
+
             switch (k.sym) {
-            case SDLK_INSERT:
+            case Qt::Key_1:
+                tsmsym = XKB_KEY_Select;
+                break;
+            case Qt::Key_2:
+                tsmsym = XKB_KEY_KP_Down;
+                break;
+            case Qt::Key_3:
+                tsmsym = XKB_KEY_KP_Page_Down;
+                break;
+            case Qt::Key_4:
+                tsmsym = XKB_KEY_KP_Left;
+                break;
+            case Qt::Key_5:
+                tsmsym = XKB_KEY_period;
+                break;
+            case Qt::Key_6:
+                tsmsym = XKB_KEY_KP_Right;
+                break;
+            case Qt::Key_7:
+                tsmsym = XKB_KEY_Find;
+                break;
+            case Qt::Key_8:
+                tsmsym = XKB_KEY_KP_Up;
+                break;
+            case Qt::Key_9:
+                tsmsym = XKB_KEY_KP_Page_Up;
+                break;
+            }
+
+        } else {
+
+            switch (k.sym) {
+            case Qt::Key_Insert:
                 tsmsym = XKB_KEY_Insert;
                 break;
-            case SDLK_HOME:
+            case Qt::Key_Home:
                 tsmsym = XKB_KEY_Home;
                 break;
-            case SDLK_PAGEUP:
+            case Qt::Key_PageUp:
                 tsmsym = XKB_KEY_Page_Up;
                 break;
-            case SDLK_END:
+            case Qt::Key_End:
                 tsmsym = XKB_KEY_End;
                 break;
-            case SDLK_PAGEDOWN:
+            case Qt::Key_PageDown:
                 tsmsym = XKB_KEY_Page_Down;
                 break;
-            case SDLK_RIGHT:
+            case Qt::Key_Right:
                 tsmsym = XKB_KEY_Right;
                 break;
-            case SDLK_LEFT:
+            case Qt::Key_Left:
                 tsmsym = XKB_KEY_Left;
                 break;
-            case SDLK_DOWN:
+            case Qt::Key_Down:
                 tsmsym = XKB_KEY_Down;
                 break;
-            case SDLK_UP:
+            case Qt::Key_Up:
                 tsmsym = XKB_KEY_Up;
                 break;
 
-            case SDLK_KP_1:
-                tsmsym = XKB_KEY_Select;
-                break;
-            case SDLK_KP_2:
-                tsmsym = XKB_KEY_KP_Down;
-                break;
-            case SDLK_KP_3:
-                tsmsym = XKB_KEY_KP_Page_Down;
-                break;
-            case SDLK_KP_4:
-                tsmsym = XKB_KEY_KP_Left;
-                break;
-            case SDLK_KP_5:
-                tsmsym = XKB_KEY_period;
-                break;
-            case SDLK_KP_6:
-                tsmsym = XKB_KEY_KP_Right;
-                break;
-            case SDLK_KP_7:
-                tsmsym = XKB_KEY_Find;
-                break;
-            case SDLK_KP_8:
-                tsmsym = XKB_KEY_KP_Up;
-                break;
-            case SDLK_KP_9:
-                tsmsym = XKB_KEY_KP_Page_Up;
-                break;
-
-            case SDLK_F1:
+            case Qt::Key_F1:
                 tsmsym = XKB_KEY_F1;
                 break;
-            case SDLK_F2:
+            case Qt::Key_F2:
                 tsmsym = XKB_KEY_F2;
                 break;
-            case SDLK_F3:
+            case Qt::Key_F3:
                 tsmsym = XKB_KEY_F3;
                 break;
-            case SDLK_F4:
+            case Qt::Key_F4:
                 tsmsym = XKB_KEY_F4;
                 break;
-            case SDLK_F5:
+            case Qt::Key_F5:
                 tsmsym = XKB_KEY_F5;
                 break;
-            case SDLK_F6:
+            case Qt::Key_F6:
                 tsmsym = XKB_KEY_F6;
                 break;
-            case SDLK_F7:
+            case Qt::Key_F7:
                 tsmsym = XKB_KEY_F7;
                 break;
-            case SDLK_F8:
+            case Qt::Key_F8:
                 tsmsym = XKB_KEY_F8;
                 break;
-            case SDLK_F9:
+            case Qt::Key_F9:
                 tsmsym = XKB_KEY_F9;
                 break;
-            case SDLK_F10:
+            case Qt::Key_F10:
                 tsmsym = XKB_KEY_F10;
                 break;
-            case SDLK_F11:
+            case Qt::Key_F11:
                 tsmsym = XKB_KEY_F11;
                 break;
-            case SDLK_F12:
+            case Qt::Key_F12:
                 tsmsym = XKB_KEY_F12;
                 break;
             default:
