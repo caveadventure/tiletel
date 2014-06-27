@@ -17,8 +17,8 @@ else()
 
 endif()
 
-SET(CMAKE_CXX_FLAGS_RELEASE "-Wall -std=c++11 -O4 -pthread -g")
-SET(CMAKE_C_FLAGS_RELEASE "-Wall -O4 -pthread -g")
+SET(CMAKE_CXX_FLAGS_RELEASE "-Wall -std=c++11 -O4 -msse2 -pthread -g ")
+SET(CMAKE_C_FLAGS_RELEASE "-Wall -O4 -msse2 -pthread -g")
 
 if(WIN32)
 
@@ -94,7 +94,7 @@ if(WIN32)
   else(TOOLKIT STREQUAL "Qt")
 
     target_link_libraries(tiletel 
-                          mingw32 SDL2 SDL2_net SDL2_image ws2_32 winmm imm32 version iphlpapi)
+                          mingw32 SDL2main SDL2 SDL2_net SDL2_image ws2_32 winmm imm32 version iphlpapi)
 
   endif(TOOLKIT STREQUAL "Qt")
 
