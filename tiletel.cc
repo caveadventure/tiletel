@@ -446,8 +446,6 @@ public:
         if (!isExposed())
             return;
 
-        std::cout << "Render!" << std::endl;
-
         QRect rect(0, 0, width(), height());
         backingStore.beginPaint(rect);
 
@@ -481,8 +479,6 @@ public:
 
         const auto& s = event->size();
 
-        std::cout << "Resize! " << s.width() << " " << s.height() << std::endl;
-
         tiler.resize(s.width(), s.height());
 
         backingStore.resize(s);
@@ -511,7 +507,6 @@ public:
     }
 
     void readyRead() {
-        std::cout << "readyRead" << std::endl;
         done = protocol.multiplexor();
         renderNow();
 
@@ -621,8 +616,6 @@ struct VTE {
     }
 
     void redraw() {
-
-        std::cout << "term_screen_draw" << std::endl;
 
         //tsm_age_t age =
         tsm_screen_draw(screen, tsm_drawer_cb, GLOBAL_TILER);
@@ -1220,7 +1213,6 @@ struct Protocol_Pty : public Protocol_Base<SOCKET> {
         ws.ws_col = sw;
         ws.ws_row = sh;
         
-        std::cout << "send_resize" << std::endl;
         ioctl(vte.socket.fd, TIOCSWINSZ, &ws);
     }
 
