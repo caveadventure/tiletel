@@ -4,6 +4,19 @@ project (tiletel)
 
 SET(CMAKE_BUILD_TYPE "Release")
 
+if(TOOLKIT STREQUAL "Qt")
+
+  find_package(Qt5Gui)
+  find_package(Qt5Network)
+
+  set(TILETEL_SRC tiletel-qt.cc)
+
+else()
+
+  set(TILETEL_SRC tiletel-sdl.cc)
+
+endif()
+
 SET(CMAKE_CXX_FLAGS_RELEASE "-Wall -std=c++11 -O4 -pthread -g")
 SET(CMAKE_C_FLAGS_RELEASE "-Wall -O4 -pthread -g")
 
@@ -28,7 +41,7 @@ find_program(RAGEL ragel)
 
 if(NOT RAGEL) 
   
-  add_executable(tiletel tiletel.cc 
+  add_executable(tiletel ${TILETEL_SRC}
      libtsm/external/wcwidth.c
      libtsm/src/tsm_vte_charsets.c
      libtsm/src/shl_htable.c 
@@ -55,7 +68,7 @@ else(NOT RAGEL)
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )
 
-  add_executable(tiletel tiletel.cc 
+  add_executable(tiletel ${TILETEL_SRC}
      libtsm/external/wcwidth.c
      libtsm/src/tsm_vte_charsets.c
      libtsm/src/shl_htable.c 
@@ -73,15 +86,32 @@ endif(NOT RAGEL)
 
 if(WIN32)
 
-  target_link_libraries(tiletel 
-                        mingw32 SDL2main SDL2 SDL2_net SDL2_image ws2_32 winmm imm32 version iphlpapi)
+  if(TOOLKIT STREQUAL "Qt")
+
+    target_link_libraries(tiletel 
+                          mingw32 Qt5::Gui Qt5::Network ws2_32 winmm imm32 version iphlpapi)
+
+  else(TOOLKIT STREQUAL "Qt")
+
+    target_link_libraries(tiletel 
+                          mingw32 SDL2 SDL2_net SDL2_image ws2_32 winmm imm32 version iphlpapi)
+
+  endif(TOOLKIT STREQUAL "Qt")
 
 else(WIN32)
 
-  target_link_libraries(tiletel SDL2 SDL2_net SDL2_image util)
+  if(TOOLKIT STREQUAL "Qt")
+
+    target_link_libraries(tiletel Qt5::Gui Qt5::Network util)
+
+  else(TOOLKIT STREQUAL "Qt")
+
+    target_link_libraries(tiletel SDL2 SDL2_net SDL2_image util)
+
+  endif(TOOLKIT STREQUAL "Qt")
 
 endif(WIN32)
 
-install(TARGETS tiletel DESTINATION games/tiletel)
-install(FILES tiles.png DESTINATION games/tiletel)
+#install(TARGETS tiletel DESTINATION games/tiletel)
+#install(FILES tiles.png DESTINATION games/tiletel)
 
