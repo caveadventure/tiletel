@@ -1,0 +1,34 @@
+
+This code comes in two versions: one that uses the SDL2 library, and one that uses the Qt library.
+
+You will need to make a choice between the two, depending on your preferences and system setup.
+
+How to compile and install on a Unix-like system:
+
+ $ mkdir build
+ $ cd build
+ $ cmake .. 
+   (For the SDL2 version.)
+ $ cmake .. -DTOOLKIT=Qt
+   (For the Qt version.)
+ $ make
+ $ cp ../*.cfg ../*.bdf ../*.png tiletel <your destination directory> 
+
+Command line options:
+
+ -c <file>
+ --config <file>
+
+   Use <file> instead of 'default.cfg' as the config file. 
+
+ -e <command>
+ --exec <command>
+
+   Execute <command> and run as a terminal emulator instead of a telnet client.
+   Note: this will only work on Unix-like operating systems.
+
+ <host> <port>
+
+   Connect to this host and port instead of what's specified in default.cfg.
+
+See default.cfg for other options that can be set through the config file. (Not documented yet, but mostly self-explanatory.)
