@@ -1,4 +1,9 @@
 
+This is a portable, OS-agnostic telnet client.
+It includes support for all 65535 Unicode characters, including the Asian ones.
+
+It is meant for use as a game client, but will work equally well as a generic telnet client or terminal emulator too.
+
 This code comes in two versions: one that uses the SDL2 library, and one that uses the Qt library.
 
 You will need to make a choice between the two, depending on your preferences and system setup.
@@ -32,3 +37,4 @@ Command line options:
    Connect to this host and port instead of what's specified in default.cfg.
 
 See default.cfg for other options that can be set through the config file. (Not documented yet, but mostly self-explanatory.)
+
