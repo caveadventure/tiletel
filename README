@@ -4,20 +4,6 @@ It includes support for all 65535 Unicode characters, including the Asian ones.
 
 It is meant for use as a game client, but will work equally well as a generic telnet client or terminal emulator too.
 
-This code comes in two versions: one that uses the SDL2 library, and one that uses the Qt library.
-
-You will need to make a choice between the two, depending on your preferences and system setup.
-
-How to compile and install on a Unix-like system:
-
- $ mkdir build
- $ cd build
- $ cmake .. 
-   (For the SDL2 version.)
- $ cmake .. -DTOOLKIT=Qt
-   (For the Qt version.)
- $ make
- $ cp ../*.cfg ../*.bdf ../*.png tiletel <your destination directory> 
 
 Command line options:
 
@@ -37,4 +23,23 @@ Command line options:
    Connect to this host and port instead of what's specified in default.cfg.
 
 See default.cfg for other options that can be set through the config file. (Not documented yet, but mostly self-explanatory.)
+
+
+The source code is hosted here: https://code.google.com/p/tiletel/
+
+The code comes in two versions: one that uses the SDL2 library, and one that uses the Qt library.
+
+You will need to make a choice between the two, depending on your preferences and system setup.
+
+How to compile and install on a Unix-like system:
+
+ $ mkdir build
+ $ cd build
+ $ cmake .. 
+   (For the SDL2 version.)
+ $ cmake .. -DTOOLKIT=Qt
+   (For the Qt version.)
+ $ make
+ $ cp ../*.cfg ../*.bdf ../*.png tiletel <your destination directory> 
+
 
