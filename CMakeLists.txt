@@ -17,8 +17,8 @@ else()
 
 endif()
 
-SET(CMAKE_CXX_FLAGS_RELEASE "-Wall -std=c++11 -O4 -msse2 -pthread -g ")
-SET(CMAKE_C_FLAGS_RELEASE "-Wall -O4 -msse2 -pthread -g")
+SET(CMAKE_CXX_FLAGS_RELEASE "-Wall -std=c++11 -O4 -pthread -g ")
+SET(CMAKE_C_FLAGS_RELEASE "-Wall -O4 -pthread -g")
 
 if(WIN32)
 
