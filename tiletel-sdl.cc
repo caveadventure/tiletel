@@ -121,7 +121,7 @@ struct Tiler {
     template <typename SCREEN>
     void tile(const SCREEN& self, 
               unsigned int x, unsigned int y, 
-              uint32_t ti, unsigned int cwidth, bool inverse,
+              uint32_t ti, unsigned int cwidth, bool inverse, bool underline,
               uint8_t fr, uint8_t fg, uint8_t fb,
               uint8_t br, uint8_t bg, uint8_t bb) {
 
@@ -154,6 +154,8 @@ struct Tiler {
 
         fill_rect(self.screen, to_x, to_y, to_w, to_h, bgc);
 
+        bool did_tiles = false;
+
         // Draw pixel tiles.
         if (!self.tiles.empty()) {
 
@@ -175,21 +177,32 @@ struct Tiler {
                     }
                 }
 
-                return;
+                did_tiles = true;
             }
         }
 
         // Or else draw font bitmaps.
 
-        auto gi = self.font.glyphs.find(ti);
+        if (!did_tiles) {
 
-        if (gi == self.font.glyphs.end())
-            return;
+            auto gi = self.font.glyphs.find(ti);
+            
+            if (gi == self.font.glyphs.end())
+                return;
 
-        const auto& glyph = gi->second;
+            const auto& glyph = gi->second;
 
-        blit_bitmap(self.screen, to_x, to_y, fgc, glyph);
+            blit_bitmap(self.screen, to_x, to_y, fgc, glyph);
+        }
 
+        if (underline) {
+
+            T* px = cursor(self.screen, to_x, to_y + to_h - 1);
+
+            for (unsigned int w = 0; w < to_w; ++w, ++px) {
+                *px = fgc;
+            }
+        }
     }
 };
 
@@ -477,11 +490,11 @@ struct Screen {
 
 
     void tile(unsigned int x, unsigned int y, 
-              uint32_t ti, unsigned int cwidth, bool inverse,
+              uint32_t ti, unsigned int cwidth, bool inverse, bool underline,
               uint8_t fr, uint8_t fg, uint8_t fb,
               uint8_t br, uint8_t bg, uint8_t bb) {
 
-        tiler.tile(*this, x, y, ti, cwidth, inverse, fr, fg, fb, br, bg, bb);
+        tiler.tile(*this, x, y, ti, cwidth, inverse, underline, fr, fg, fb, br, bg, bb);
     }
 
 
@@ -590,14 +603,14 @@ int tsm_drawer_cb(struct tsm_screen* screen, uint32_t id, const uint32_t* ch, si
     for (unsigned int i = 0; i < len; i += cwidth) {
         uint32_t c = ch[i];
 
-        draw->tile(posx+i, posy, c, cwidth, attr->inverse,
+        draw->tile(posx+i, posy, c, cwidth, attr->inverse, attr->underline,
                    attr->fr, attr->fg, attr->fb,
                    attr->br, attr->bg, attr->bb);
     }
 
     if (len == 0) {
         for (unsigned int j = 0; j < cwidth; ++j) {
-            draw->tile(posx+j, posy, (uint32_t)' ', 1, attr->inverse,
+            draw->tile(posx+j, posy, (uint32_t)' ', 1, attr->inverse, attr->underline,
                        attr->fr, attr->fg, attr->fb,
                        attr->br, attr->bg, attr->bb);
         }

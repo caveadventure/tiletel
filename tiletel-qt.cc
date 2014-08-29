@@ -328,7 +328,7 @@ struct Tiler {
 
 
     void tile(unsigned int x, unsigned int y, 
-              uint32_t ti, unsigned int cwidth, bool inverse,
+              uint32_t ti, unsigned int cwidth, bool inverse, bool underline,
               uint8_t fr, uint8_t fg, uint8_t fb,
               uint8_t br, uint8_t bg, uint8_t bb) {
 
@@ -364,12 +364,14 @@ struct Tiler {
 
         fill_rect(pixels, pitch, to_x, to_y, to_w, to_h, bgc);
 
+        bool did_tiles = false;
+
         // Draw pixel tiles.
         if (!tiles.empty()) {
 
             auto tmi = cfg.tile_mapping.find(ti);
 
-            if (tmi != cfg.tile_mapping.end()) {
+            if (tmi == cfg.tile_mapping.end()) {
 
                 uint32_t pixi = tmi->second;
 
@@ -385,20 +387,32 @@ struct Tiler {
                     }
                 }
 
-                return;
+                did_tiles = true;
             }
         }
 
         // Or else draw font bitmaps.
 
-        auto gi = font.glyphs.find(ti);
+        if (!did_tiles) {
 
-        if (gi == font.glyphs.end())
-            return;
+            auto gi = font.glyphs.find(ti);
 
-        const auto& glyph = gi->second;
+            if (gi == font.glyphs.end())
+                return;
 
-        blit_bitmap(pixels, pitch, to_x, to_y, fgc, glyph);
+            const auto& glyph = gi->second;
+
+            blit_bitmap(pixels, pitch, to_x, to_y, fgc, glyph);
+        }
+
+        if (underline) {
+
+            pixel_t* px = cursor(pixels, pitch, to_x, to_y + to_h - 1);
+
+            for (unsigned int w = 0; w < to_w; ++w, ++px) {
+                *px = fgc;
+            }
+        }
     }
 
     void resize(unsigned int w, unsigned int h) {
@@ -550,14 +564,14 @@ int tsm_drawer_cb(struct tsm_screen* screen, uint32_t id, const uint32_t* ch, si
     for (unsigned int i = 0; i < len; i += cwidth) {
         uint32_t c = ch[i];
 
-        tiler->tile(posx+i, posy, c, cwidth, attr->inverse,
+        tiler->tile(posx+i, posy, c, cwidth, attr->inverse, attr->underline,
                     attr->fr, attr->fg, attr->fb,
                     attr->br, attr->bg, attr->bb);
     }
 
     if (len == 0) {
         for (unsigned int j = 0; j < cwidth; ++j) {
-            tiler->tile(posx+j, posy, (uint32_t)' ', 1, attr->inverse,
+            tiler->tile(posx+j, posy, (uint32_t)' ', 1, attr->inverse, attr->underline,
                         attr->fr, attr->fg, attr->fb,
                         attr->br, attr->bg, attr->bb);
         }
