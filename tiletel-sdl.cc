@@ -1289,7 +1289,7 @@ struct Protocol_Telnet : public Protocol_Base<SOCKET> {
                     } else if (c == '\x18') {
                         send_terminal_type("xterm");
 
-                    } else if (c == '\x54') {
+                    } else if (c == '\x55') {
                         vte.socket.compression = true;
                     }
                     break;
@@ -1314,7 +1314,7 @@ struct Protocol_Telnet : public Protocol_Base<SOCKET> {
 
                 case WILL:
 
-                    if (c == '\x54' && enable_compression) {
+                    if (c == '\x55' && enable_compression) {
                         // Compression.
                         telnet_do(c);
                     }
