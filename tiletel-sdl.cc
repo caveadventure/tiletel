@@ -789,6 +789,10 @@ struct Socket {
         return ret;
     }
 
+    void reread(const std::string& buff) {
+        compression_leftover = buff;
+    }
+
     void send(const std::string& in) {
 
         int i = SDLNet_TCP_Send(socket, (char*)in.data(), in.size());
@@ -1227,6 +1231,9 @@ struct Protocol_Telnet : public Protocol_Base<SOCKET> {
             SB_IAC
         } telnetstate = STREAM;
 
+        bool did_enable_compression = false;
+        bool do_restart = false;
+
         while (1) {
 
             buff.resize(16*1024);
@@ -1238,7 +1245,8 @@ struct Protocol_Telnet : public Protocol_Base<SOCKET> {
 
             rewritten.reserve(buff.size());
 
-            for (char c : buff) {
+            for (auto ci = buff.begin(); ci != buff.end() && !do_restart; ++ci) {
+                char c = *ci;
 
                 switch (telnetstate) {
 
@@ -1263,6 +1271,7 @@ struct Protocol_Telnet : public Protocol_Base<SOCKET> {
 
                     } else if (c == '\xFA') {
                         telnetstate = SB;
+                        did_enable_compression = false;
 
                     } else if (c == '\xFE') {
                         telnetstate = DONT;
@@ -1290,14 +1299,22 @@ struct Protocol_Telnet : public Protocol_Base<SOCKET> {
                         send_terminal_type("xterm");
 
                     } else if (c == '\x55') {
-                        vte.socket.compression = true;
+                        did_enable_compression = true;
                     }
                     break;
 
                 case SB_IAC:
 
                     if (c == '\xF0') {
+
                         telnetstate = STREAM;
+
+                        if (did_enable_compression) {
+                            vte.socket.compression = true;
+                            vte.socket.reread(std::string(ci+1, buff.end()));
+                            did_enable_compression = false;
+                            do_restart = true;
+                        }
 
                     } else {
                         telnetstate = SB;
@@ -1340,6 +1357,11 @@ struct Protocol_Telnet : public Protocol_Base<SOCKET> {
                     telnetstate = STREAM;
                     break;
                 }
+            }
+
+            if (do_restart) {
+                do_restart = false;
+                continue;
             }
 
             if (telnetstate == STREAM)
