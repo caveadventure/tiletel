@@ -157,7 +157,8 @@ struct Tiler {
         }
     }
 
-    static void surface_to_indexed(unsigned int bw, unsigned int bh, const std::vector<uint8_t>& pixels, const std::vector<uint8_t>& colors,
+    static void surface_to_indexed(unsigned int bw, unsigned int bh, const std::vector<uint8_t>& pixels,
+                                   const std::vector<uint8_t>& colors,
                                    unsigned int tw, unsigned int th, std::unordered_map<uint32_t, indexed_bitmap>& out) {
 
         if ((bw % tw) != 0 || (bh % th) != 0) {
@@ -445,7 +446,7 @@ struct Tiler {
         screen.swap(tmp);
     }
 
-    void render() {
+    void render(Socket& browser_sock) {
 
         png_image out;
         ::memset((void*)&out, 0, sizeof(png_image));
@@ -460,7 +461,7 @@ struct Tiler {
                                 NULL);
     }
 };
-
+    
 
 void tsm_logger_cb(void* data, const char* file, int line, const char* func, const char* subs,
                    unsigned int sev, const char* format, va_list args) {
@@ -521,7 +522,8 @@ struct VTE {
     unsigned int sw;
     unsigned int sh;
     
-    VTE(SOCKET& s, config::Config& _cfg) : screen(NULL), vte(NULL), socket(s), cfg(_cfg), tiler(cfg), sw(tiler.sw), sh(tiler.sh)
+    VTE(SOCKET& s, config::Config& _cfg) : screen(NULL), vte(NULL), socket(s), cfg(_cfg), tiler(cfg),
+                                           sw(tiler.sw), sh(tiler.sh)
     {
 
         try {
@@ -561,10 +563,11 @@ struct VTE {
         tsm_vte_input(vte, data.data(), data.size());
     }
 
-    void redraw() {
+    void redraw(Socket& browser_sock) {
 
         //tsm_age_t age =
         tsm_screen_draw(screen, tsm_drawer_cb, &tiler);
+        tiler.render(browser_sock);
     }
 
     void set_palette(const std::string& palette) {
@@ -925,16 +928,16 @@ struct Protocol_Telnet : public Protocol_Base<SOCKET> {
     }
 
     // Handle a window resize event from the GUI.
-    void resizer(unsigned int sw, unsigned int sh) {
+    void resizer(Socket& browser_sock, unsigned int sw, unsigned int sh) {
 
         send_resize(sw, sh);
         vte.resize(sw, sh);
-        vte.redraw();
+        vte.redraw(browser_sock);
     }
 
 
     // The meat of the telnet protocol.
-    bool multiplexor() {
+    bool multiplexor(Socket& browser_sock) {
 
         static std::string buff;
         static std::string rewritten;
@@ -1091,12 +1094,12 @@ struct Protocol_Telnet : public Protocol_Base<SOCKET> {
         //
 
         vte.feed(rewritten);
-        vte.redraw();
+        vte.redraw(browser_sock);
 
         buff.clear();
         rewritten.clear();
 
-        if (more) return multiplexor();
+        if (more) return multiplexor(browser_sock);
 
         return false;
     }
@@ -1114,7 +1117,7 @@ struct Protocol_Pty : public Protocol_Base<SOCKET> {
         Protocol_Base<SOCKET>(_vte), polltimeout(pt) {}
 
     void send_resize(unsigned int sw, unsigned int sh) {
-        
+
         struct winsize ws;
         ws.ws_col = sw;
         ws.ws_row = sh;
@@ -1122,14 +1125,14 @@ struct Protocol_Pty : public Protocol_Base<SOCKET> {
         ioctl(vte.socket.fd, TIOCSWINSZ, &ws);
     }
 
-    void resizer(unsigned int sw, unsigned int sh) {
+    void resizer(Socket& browser_sock, unsigned int sw, unsigned int sh) {
 
         send_resize(sw, sh);
         vte.resize(sw, sh);
-        vte.redraw();
+        vte.redraw(browser_sock);
     }
 
-    bool multiplexor() {
+    bool multiplexor(Socket& browser_sock) {
 
         static std::string buff;
 
@@ -1142,11 +1145,11 @@ struct Protocol_Pty : public Protocol_Base<SOCKET> {
         }
 
         vte.feed(buff);
-        vte.redraw();
+        vte.redraw(browser_sock);
 
         buff.clear();
 
-        if (more) return multiplexor();
+        if (more) return multiplexor(browser_sock);
 
         return false;
     }
@@ -1169,7 +1172,7 @@ void mainloop_aux(Socket& browser_sock, SOCK& term_sock, const config::Config& c
     protocol.resizer(vte.tiler.sw, vte.tiler.sh);
 
     while (1) {
-        if (protocol.multiplexor())
+        if (protocol.multiplexor(browser_sock))
             break;
     }
 }
