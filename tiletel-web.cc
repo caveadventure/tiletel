@@ -6,6 +6,8 @@
 #include <functional>
 #include <unordered_map>
 
+#include <thread>
+
 #include <png.h>
 
 #include "libtsm/src/libtsm.h"
@@ -23,6 +25,8 @@ extern "C" {
 
 #include "lz77.h"
 
+#include "sha1.h"
+
 #include <sys/socket.h>
 
 #include <netinet/in.h>
@@ -32,6 +36,8 @@ extern "C" {
 #include <stdlib.h>
 #include <unistd.h>
 #include <pty.h>
+
+#include <ctype.h>
 
 
 struct Tiler {
@@ -595,6 +601,11 @@ struct Socket {
 
         throw std::runtime_error(msg);
     }
+
+    Socket(Socket&& other) {
+        *this = other;
+        other.fd = -1;
+    }
     
     Socket(const std::string& host, unsigned int port) : compression(false) {
 
@@ -1142,10 +1153,10 @@ struct Protocol_Pty : public Protocol_Base<SOCKET> {
 };
 
 
-template <typename SOCKET>
-void mainloop(SOCKET& sock, config::Config& cfg) {
+template <template <typename> class PROTO, typename SOCK>
+void mainloop_aux(Socket& browser_sock, SOCK& term_sock, const config::Config& cfg) {
 
-    VTE<SOCKET> vte(sock, cfg);
+    VTE<SOCKET> vte(term_sock, cfg);
 
     if (cfg.palette.size() > 0) {
         vte.set_palette(cfg.palette);
@@ -1153,7 +1164,7 @@ void mainloop(SOCKET& sock, config::Config& cfg) {
 
     vte.set_cursor(cfg.cursor);
 
-    Protocol_Pty<SOCKET> protocol(vte, cfg.polling_rate, cfg.compression);
+    PROTO<SOCKET> protocol(vte, cfg.polling_rate, cfg.compression);
 
     protocol.resizer(vte.tiler.sw, vte.tiler.sh);
 
@@ -1163,7 +1174,74 @@ void mainloop(SOCKET& sock, config::Config& cfg) {
     }
 }
 
-void handle_http_command(Socket& sock, const std::string& method, const std::string& url, const std::string& proto) {
+void mainloop(Socket& browser_sock, const config::Config& cfg) {
+
+    if (cfg.command.size() > 0) {
+
+        Process proc(cfg.command);
+
+        mainloop_aux<Protocol_Pty>(browser_sock, proc, cfg);
+
+    } else {
+
+        Socket telnet_sock(cfg.host, cfg.port);
+
+        mainloop_aux<Protocol_Telnet>(browser_sock, telnet_sock, cfg);
+    }
+}
+
+
+std::string base64_encode(const unsigned char* bytes, size_t len) {
+    
+    static const std::string base64_chars = 
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz"
+        "0123456789+/";
+
+    std::string ret;
+
+    const unsigned char* end = bytes + len;
+    
+    while (bytes != end) {
+
+        unsigned char b0 = 0;
+        unsigned char b1 = 0;
+        unsigned char b2 = 0;
+        unsigned int marks = 0;
+
+        b0 = *bytes;
+        ++bytes;
+
+        if (bytes == end) {
+            marks = 2;
+
+        } else {
+            b1 = *bytes;
+            ++bytes;
+
+            if (bytes == end) {
+                marks = 1;
+            } else {
+                b2 = *bytes;
+                ++bytes;
+            }
+        }
+
+        ret += base64_chars[(b0 & 0xFC) >> 2];
+        ret += base64_chars[((b0 & 0x03) << 4) | ((b1 & 0xF0) >> 4)];
+        ret += base64_chars[((b1 & 0x0F) << 2) | ((b2 & 0xC0) >> 6)];
+        ret += base64_chars[b2 & 0x3F];
+
+        for (unsigned int j = 0; j < marks; ++j)
+            ret += '=';
+    }
+
+    return ret;
+}
+
+void handle_http_command(Socket& sock, const config::Config& cfg,
+                         const std::string& method, const std::string& url,
+                         const std::string& proto, const std::map<std::string,std::string>& headers) {
 
     if (method != "GET")
         return;
@@ -1171,11 +1249,38 @@ void handle_http_command(Socket& sock, const std::string& method, const std::str
     if (proto != "HTTP/1.0" && proto != "HTTP/1.1")
         return;
 
-    
+    if (url != "/run")
+        return;
+
+    auto hi = headers.find("sec-websocket-key");
+
+    if (hi == headers.end())
+        return;
+
+    std::string bullshit = hi->second + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+
+    unsigned char sha[20];
+    sha1::calc(bullshit.c_str(), bullshit.size(), sha);
+
+    bullshit = base64_encode(sha, 20);
+
+    static const std::string reply =
+        "HTTP/1.1 101 Switching Protocols\r\n"
+        "Upgrade: websocket\r\n"
+        "Connection: Upgrade\r\n"
+        "Sec-WebSocket-Accept: \r\n";
+
+    std::string tmp = reply;
+    reply += bullshit;
+    reply += "\r\n\r\n";
+
+    sock.send(reply);
+
+    mainloop(sock, cfg);
 }
 
 
-void read_http_command(Socket& sock) {
+void read_http_command_aux(Socket& sock, const config::Config& cfg) {
 
     std::string buff;
     buff.resize(1024);
@@ -1185,15 +1290,22 @@ void read_http_command(Socket& sock) {
         METHOD,
         URL,
         PROTO,
-        HEADERS_START,
-        HEADERS
+        HEADER_START,
+        HEADER_KEY,
+        HEADER_VAL
     } state = METHOD;
         
 
     std::string method;
     std::string url;
     std::string proto;
-    
+    std::string header_key;
+    std::string header_val;
+    std::map<std::string,std::string> headers;
+
+    // This parser is non-compliant: it doesn't handle whitespace within
+    // header values or duplicate headers correctly.
+
     while (1) {
 
         if (!sock.recv(buff, more))
@@ -1214,24 +1326,54 @@ void read_http_command(Socket& sock) {
 
             case PROTO:
                 if (c == '\r') // nothing
-                else if (c == '\n') state = HEADERS_START;
+                else if (c == '\n') state = HEADER_START;
                 else proto += c;
                 break;
 
-            case HEADERS_START:
+            case HEADER_START:
                 if (c == '\r') // nothing
-                else if (c == '\n') handle_http_command(sock, method, url, proto);
-                else state = HEADERS;
+                else if (c == '\n') handle_http_command(sock, cfg, method, url, proto, headers);
+                else if (c == ' ' || c == '\t') state = HEADER_VAL;
+                else {
+
+                    if (!header_key.empty() || !header_val.empty())
+                        headers[header_key] = header_val;
+
+                    header_key.clear();
+                    header_val.clear();
+                    header_key += ::tolower(c);
+                    state = HEADER_KEY;
+                }
                 break;
 
-            case HEADERS:
-                if (c == '\n') state = HEADERS_START;
+            case HEADER_KEY:
+                if (c == ':') state = HEADER_VAL;
+                else header_key += ::tolower(c);
                 break;
+
+            case HEADER_VAL:
+                if (c == '\r') // nothing
+                else if (c == '\n') state = HEADER_START;
+                else if (c == ' ' || c == '\t') // nothing
+                else header_val += c;
             }
         }
     }
 }
 
+void read_http_command(int fd, const config::Config& cfg) {
+
+    try {
+
+        Socket sock(fd);
+        read_http_command_aux(sock, cfg);
+
+    } catch (std::exception& e) {
+        std::cerr << "Caught error: " << e.what() << std::endl;
+
+    } catch (...) {
+    }
+}
 
 void usage(const std::string& argv0) {
     std::cerr << "Usage: " << argv0 << " [--config <cfgfile>] [host] [port]" << std::endl;
@@ -1320,22 +1462,9 @@ int main(int argc, char** argv) {
 
         while (1) {
 
-            Socket client(server.accept());
-
-            read_http_command(client);
-        }
-
-        if (cfg.command.size() > 0) {
-
-            Process proc(cfg.command);
-
-            mainloop(proc, cfg);
-
-        } else {
-
-            Socket sock(cfg.host, cfg.port);
-
-            mainloop(sock, cfg);
+            int client = server.accept();
+            std::thread thr(read_http_command, client, std::cref(cfg));
+            thr.detach();
         }
         
     } catch (std::exception& e) {
