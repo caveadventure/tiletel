@@ -7,6 +7,14 @@
         background-color: #0A0A0A;
         font: 12px monospace;
       }
+
+      #fullscreen {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        }
     </style>
   </head>
   <body>
@@ -16,7 +24,9 @@
       socket.binaryType = 'arraybuffer';
 
       var resizer = function() {
-          socket.send('r' + (document.body.clientWidth - 16) + ' ' + (document.body.clientHeight - 16));
+          var w = document.getElementById("fullscreen").clientWidth - 3;
+          var h = document.getElementById("fullscreen").clientHeight - 3;
+          socket.send('r' + w + ' ' + h);
       };
 
       var pressor = function(event) {
@@ -73,7 +83,9 @@
 
     </script>
 
-    <img id="image">
+    <div id="fullscreen">
+      <img id="image">
+    </div>
 
   </body>
 </html>
