@@ -1,4 +1,3 @@
-
 This is a portable, OS-agnostic telnet client.
 It includes support for all 65535 Unicode characters, including the Asian ones.
 
@@ -25,7 +24,7 @@ Command line options:
 See default.cfg for other options that can be set through the config file. (Not documented yet, but mostly self-explanatory.)
 
 
-The source code is hosted here: https://code.google.com/p/tiletel/
+The source code is hosted here: https://bitbucket.org/caveadventure/tiletel
 
 The code comes in two versions: one that uses the SDL2 library, and one that uses the Qt library.
 
@@ -40,6 +39,4 @@ How to compile and install on a Unix-like system:
  $ cmake .. -DTOOLKIT=Qt
    (For the Qt version.)
  $ make
- $ cp ../*.cfg ../*.bdf ../*.png tiletel <your destination directory> 
-
-
+ $ cp ../*.cfg ../*.bdf ../*.png tiletel <your destination directory>
