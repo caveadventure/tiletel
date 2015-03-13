@@ -1167,28 +1167,27 @@ struct Protocol_Pty : public Protocol_Base<SOCKET> {
 void write_websocket_frame(Socket& browser_sock, void* buff, size_t len) {
 
     uint8_t magic[14] = {
-        0xF2, // Final frame with binary data.
-        0x80, // Masked. (Except it really isn't, the mask is all zeroes.)
+        0x82, // Final frame with binary data.
+        0x00, // Not masked.
         0x00, 0x00, // Length extension 1
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Length extension 2
-        0x00, 0x00, 0x00, 0x00 // Mask, set to zero always
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00 // Length extension 2
     }; 
 
     size_t header_len;
     
     if (len <= 125) {
         magic[1] |= len & 0xFF;
-        header_len = 6;
+        header_len = 2;
 
     } else if (len <= 65535) {
         magic[1] |= 126;
         magic[2] = (len >> 8) & 0xFF;
         magic[3] = len & 0xFF;
-        header_len = 8;
+        header_len = 4;
 
     } else {
         magic[1] = 127;
-        header_len = 14;
+        header_len = 10;
 
         size_t tmp = len;
         for (size_t i = 9; i >= 2; --i) {
@@ -1280,11 +1279,18 @@ std::string base64_encode(const unsigned char* bytes, size_t len) {
 
         ret += base64_chars[(b0 & 0xFC) >> 2];
         ret += base64_chars[((b0 & 0x03) << 4) | ((b1 & 0xF0) >> 4)];
-        ret += base64_chars[((b1 & 0x0F) << 2) | ((b2 & 0xC0) >> 6)];
-        ret += base64_chars[b2 & 0x3F];
 
-        for (unsigned int j = 0; j < marks; ++j)
+        if (marks == 2) {
             ret += '=';
+        } else {
+            ret += base64_chars[((b1 & 0x0F) << 2) | ((b2 & 0xC0) >> 6)];
+        }
+
+        if (marks == 1) {
+            ret += '=';
+        } else {
+            ret += base64_chars[b2 & 0x3F];
+        }
     }
 
     return ret;
@@ -1293,7 +1299,12 @@ std::string base64_encode(const unsigned char* bytes, size_t len) {
 bool handle_http_command(Socket& sock, const config::Config& cfg,
                          const std::string& method, const std::string& url,
                          const std::string& proto, const std::map<std::string,std::string>& headers) {
-  
+
+    std::cout << "[" << method << "][" << proto << "][" << url << "]" << std::endl;
+    for (const auto& z : headers) {
+        std::cout << "  " << z.first << ":[" << z.second << "]" << std::endl;
+    }
+
     bool ok = true;
     
     if (method != "GET")
@@ -1328,12 +1339,14 @@ bool handle_http_command(Socket& sock, const config::Config& cfg,
         "HTTP/1.1 101 Switching Protocols\r\n"
         "Upgrade: websocket\r\n"
         "Connection: Upgrade\r\n"
-        "Sec-WebSocket-Accept: \r\n";
+        "Sec-WebSocket-Accept: ";
 
     std::string tmp = reply;
     tmp += bullshit;
     tmp += "\r\n\r\n";
 
+    std::cout << "{" << tmp << "}" << std::endl;
+    
     sock.send(tmp);
 
     mainloop(sock, cfg);

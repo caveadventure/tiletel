@@ -1,0 +1,55 @@
+
+<html>
+  <head>
+    <meta charset="UTF-8">
+  </head>
+  <body>
+    <script type="text/javascript">
+      console.log(window.innerWidth + ',' + window.innerHeight);
+      var resizer = function() {
+          console.log("Resize: " + window.innerWidth + ',' + window.innerHeight);
+      };
+      var pressor = function(event) {
+          console.log("Keypress: " + event.keyCode + ' ' + event.which);
+      };
+      window.addEventListener("keypress", pressor, false);
+      window.addEventListener("resize", resizer, false);
+      window.addEventListener("orientationchange", resizer, false);
+
+      var socket = new WebSocket('ws://localhost:8080/run');
+      socket.binaryType = 'arraybuffer';
+
+      try {
+        socket.onopen = function() {
+          document.getElementById('status').style.backgroundColor = '#40ff40';
+          document.getElementById('status').textContent = 'Connection opened';
+        }
+
+        socket.onmessage = function(msg) {
+          var arrayBuffer = msg.data;
+          var bytes = new Uint8Array(arrayBuffer);
+          var blob = new Blob([bytes.buffer]);
+
+          var image = document.getElementById('image');
+
+          var reader = new FileReader();
+          reader.onload = function(e) {
+             image.src = e.target.result;
+          };
+          reader.readAsDataURL(blob);
+        }
+
+        socket.onclose = function(){
+          document.getElementById('status').style.backgroundColor = '#ff4040';
+          document.getElementById('status').textContent = 'Connection closed';
+        }
+      } catch(exception) {
+        console.log('Error:' + exception);
+      }
+    </script>
+
+    <img id="image">
+    <p></p>
+    <div id="status">...</div>
+  </body>
+</html>
