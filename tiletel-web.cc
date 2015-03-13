@@ -8,7 +8,7 @@
 
 #include <thread>
 
-#include <png.h>
+#include <gd.h>
 
 #include "libtsm/src/libtsm.h"
 
@@ -40,6 +40,11 @@ extern "C" {
 #include <ctype.h>
 
 
+struct Socket;
+
+void write_websocket_frame(Socket&, void*, size_t);
+
+
 struct Tiler {
 
     config::Config& cfg;
@@ -49,14 +54,7 @@ struct Tiler {
     unsigned int sw;
     unsigned int sh;
 
-    struct pixel_t {
-        uint8_t r;
-        uint8_t g;
-        uint8_t b;
-        uint8_t a;
-    };
-
-    std::vector<pixel_t> screen;
+    gdImagePtr screen;
 
     struct indexed_bitmap {
         struct layer {
@@ -76,33 +74,43 @@ struct Tiler {
     Tiler(config::Config& _cfg):
         cfg(_cfg),
         tw(cfg.tile_width), th(cfg.tile_height), 
-        sw(cfg.screen_width), sh(cfg.screen_height) {
+        sw(cfg.screen_width), sh(cfg.screen_height),
+        screen(NULL) {
 
         if (!cfg.tiles.empty()) {
 
-            png_image rtiles;
-            ::memset((void*)&rtiles, 0, sizeof(png_image));
+            FILE* f = ::fopen(cfg.tiles.c_str(), "rb");
 
-            rtiles.version = PNG_IMAGE_VERSION;
+            if (f == NULL)
+                throw std::runtime_error("Could not open " + cfg.tiles);
             
-            if (png_image_begin_read_from_file(&rtiles, cfg.tiles.c_str()) != 0)
-                throw std::runtime_error("Could not read PNG header for " + cfg.files);
+            gdImagePtr rtiles = NULL;
 
-            rtiles.format = PNG_FORMAT_RGBA_COLORMAP;
+            try {
+            
+                rtiles = gdImageCreateFromPng(f);
 
-            std::vector<uint8_t> tilesb;
-            tilesb.resize(PNG_IMAGE_SIZE(rtiles));
+                if (rtiles == NULL)
+                    throw std::runtime_error("Could not read PNG: " + cfg.tiles);
 
-            std::vector<uint8_t> colors;
-            colors.resize(PNG_IMAGE_COLORMAP_SIZE(rtiles));
+                if (gdImageTrueColor(rtiles))
+                    throw std::runtime_error("Only palette indexed PNG files are supported.");
 
-            if (png_image_finish_read(&rtiles, NULL, (png_bytep*)tilesb.data(),
-                                      0, (png_bytep*)colors.data()) != 0)
-                throw std::runtime_error("Could not read PNG data for " + cfg.tiles);
+                surface_to_indexed(rtiles, tw, th, tiles);
 
-            surface_to_indexed(rtiles.width, rtiles.height, tilesb, colors, tw, th, tiles);
+                gdImageDestroy(rtiles);
+                ::fclose(f);
+                
+            } catch (...) {
 
-            png_free_image(&rtiles);
+                if (rtiles != NULL)
+                    gdImageDestroy(rtiles);
+
+                if (f != NULL)
+                    ::fclose(f);
+
+                throw;
+            }
         }
 
         auto fi = cfg.fonts.rbegin();
@@ -129,9 +137,18 @@ struct Tiler {
             ++fi;
         }
 
-        screen.resize(tw*sw*th*sh);
+        screen = gdImageCreateTrueColor(tw*sw, th*sh);
+
+        if (screen == NULL)
+            throw std::runtime_error("Could not allocate screen buffer");
     }
-    
+
+    ~Tiler() {
+
+        if (screen != NULL)
+            gdImageDestroy(screen);
+    }
+
     static void print_bitmap(uint32_t ix, const bdf::bitmap& bitmap) {
 
         unsigned int x = 0;
@@ -157,10 +174,11 @@ struct Tiler {
         }
     }
 
-    static void surface_to_indexed(unsigned int bw, unsigned int bh, const std::vector<uint8_t>& pixels,
-                                   const std::vector<uint8_t>& colors,
-                                   unsigned int tw, unsigned int th, std::unordered_map<uint32_t, indexed_bitmap>& out) {
+    static void surface_to_indexed(gdImagePtr tiles, unsigned int tw, unsigned int th, std::unordered_map<uint32_t, indexed_bitmap>& out) {
 
+        unsigned int bw = gdImageSX(tiles);
+        unsigned int bh = gdImageSY(tiles);
+        
         if ((bw % tw) != 0 || (bh % th) != 0) {
 
             throw std::runtime_error("Size of tiles image does not match tile size");
@@ -170,12 +188,19 @@ struct Tiler {
 
         std::unordered_map<uint32_t, size_t> colormap;
 
-        for (int ci = 0; ci < colors.size(); ci += 4) {
+        unsigned int ncolors = gdImageColorsTotal(tiles);
 
-            if (colors[ci+3] == 0x00)
+        for (int ci = 0; ci < ncolors; ++ci) {
+
+            int _r = gdImageRed(tiles, ci);
+            int _g = gdImageGreen(tiles, ci);
+            int _b = gdImageBlue(tiles, ci);
+            int _a = gdImageAlpha(tiles, ci);
+
+            if (_a == gdAlphaMax)
                 continue;
 
-            uint32_t colorhash = (colors[ci] << 24) | (colors[ci+1] << 16) | (colors[ci+2] << 8) | (colors[ci+3]);
+            uint32_t colorhash = gdTrueColorAlpha(_r, _g, _b, _a);
 
             if (colormap.count(colorhash) != 0)
                 continue;
@@ -184,9 +209,9 @@ struct Tiler {
             base.layers.resize(base.layers.size() + 1);
             auto& l = base.layers.back();
 
-            l.r = colors[ci];
-            l.g = colors[ci+1];
-            l.b = colors[ci+2];
+            l.r = _r;
+            l.g = _g;
+            l.b = _b;
             l.bitmap.w = tw;
             l.bitmap.make_pitch();
             l.bitmap.bm.resize(l.bitmap.pitch * th);
@@ -206,9 +231,14 @@ struct Tiler {
                 for (unsigned int yy = 0; yy < th; ++yy) {
                     for (unsigned int xx = 0; xx < tw; ++xx) {
 
-                        int colorix = pixels[txx*tw + xx, tyy*th + yy];
-                        uint32_t colorhash = (colors[colorix] << 24) | (colors[colorix+1] << 16) | 
-                                              (colors[colorix+2] << 8) | (colors[colorix+3]);
+                        int colorix = gdImagePalettePixel(tiles, txx*tw + xx, tyy*th + yy);
+                        
+                        int _r = gdImageRed(tiles, ci);
+                        int _g = gdImageGreen(tiles, ci);
+                        int _b = gdImageBlue(tiles, ci);
+                        int _a = gdImageAlpha(tiles, ci);
+
+                        uint32_t colorhash = gdTrueColorAlpha(_r, _g, _b, _a);
 
                         auto tmp = colormap.find(colorhash);
 
@@ -270,47 +300,40 @@ struct Tiler {
         }
     }
 
-    inline pixel_t map_color(uint8_t r, uint8_t g, uint8_t b) {
-        return pixel_t{r, g, b, 0xFF};
+    inline int map_color(uint8_t r, uint8_t g, uint8_t b) {
+        return gdTrueColorAlpha(r, g, b);
     }
 
-    inline pixel_t color_mul(uint8_t cr, uint8_t cg, uint8_t cb, uint8_t r, uint8_t g, uint8_t b) {
+    inline int color_mul(uint8_t cr, uint8_t cg, uint8_t cb, uint8_t r, uint8_t g, uint8_t b) {
         return map_color(((r*cr)/256), ((g*cg)/256), ((b*cb)/256));
     }
 
-    inline pixel_t color_screen(uint8_t cr, uint8_t cg, uint8_t cb, uint8_t r, uint8_t g, uint8_t b) {
+    inline int color_screen(uint8_t cr, uint8_t cg, uint8_t cb, uint8_t r, uint8_t g, uint8_t b) {
         return map_color(256 - (((256-r)*(256-cr))/256.0), 
                          256 - (((256-g)*(256-cg))/256.0), 
                          256 - (((256-b)*(256-cb))/256.0));
     }
 
-    inline pixel_t color_avg(uint8_t cr, uint8_t cg, uint8_t cb, uint8_t r, uint8_t g, uint8_t b) {
+    inline int color_avg(uint8_t cr, uint8_t cg, uint8_t cb, uint8_t r, uint8_t g, uint8_t b) {
         return map_color(((r+cr)/2), ((g+cg)/2), ((b+cb)/2));
     }
 
-    inline pixel_t* cursor(pixel_t* pixels, unsigned int pitch, unsigned int x, unsigned int y) {
-        return pixels + (y * pitch) + x;
+    inline void set_pixel(gdImagePtr pixels, unsigned int x, unsigned int y, int color) {
+        gdImageTrueColorPixel(pixels, x, y) = color;
     }
 
-    inline void set_pixel(pixel_t* pixels, unsigned int pitch, unsigned int x, unsigned int y, pixel_t color) {
-        *cursor(pixels, pitch, x, y) = color;
-    }
-
-    inline void fill_rect(pixel_t* pixels, unsigned int pitch, 
+    inline void fill_rect(gdImagePtr pixels, 
                           unsigned int to_x, unsigned int to_y, 
-                          unsigned int to_w, unsigned int to_h, pixel_t bgc) {
+                          unsigned int to_w, unsigned int to_h, int bgc) {
 
         for (unsigned int yy = to_y; yy < to_h + to_y; ++yy) {
-
-            pixel_t* px = cursor(pixels, pitch, to_x, yy);
-
-            for (unsigned int xx = 0; xx < to_w; ++xx, ++px) {
-                *px = bgc;
+            for (unsigned int xx = to_x; xx < to_w + to_x; ++xx) {
+                set_pixel(pixels, xx, yy, bgc);
             }
         }
     }
 
-    inline void blit_bitmap(pixel_t* pixels, unsigned int pitch, 
+    inline void blit_bitmap(gdImagePtr pixels, 
                             unsigned int to_x, unsigned int to_y,
                             pixel_t fgc, const bdf::bitmap& bitmap) {
 
@@ -329,12 +352,10 @@ struct Tiler {
                 continue;
             }
 
-            pixel_t* px = cursor(pixels, pitch, to_x + xx, to_y + yy);
-
             for (int bit = 7; bit >= 0; --bit) {
 
                 if (v & (1 << bit)) 
-                    *px = fgc;
+                    set_pixel(pixels, to_x + xx, to_y + yy, fgc);
 
                 ++xx;
                 ++px;
@@ -377,13 +398,10 @@ struct Tiler {
             fb = tb;
         }
 
-        pixel_t fgc = map_color(fr, fg, fb);
-        pixel_t bgc = map_color(br, bg, bb);
+        int fgc = map_color(fr, fg, fb);
+        int bgc = map_color(br, bg, bb);
 
-        int pitch = tw*sw;
-        pixel_t* pixels = screen.data();
-
-        fill_rect(pixels, pitch, to_x, to_y, to_w, to_h, bgc);
+        fill_rect(screen, to_x, to_y, to_w, to_h, bgc);
 
         bool did_tiles = false;
 
@@ -404,7 +422,7 @@ struct Tiler {
 
                     for (const auto& l : tmpi->second.layers) {
                         pixel_t fgp = color_mul(l.r, l.g, l.b, fr, fg, fb);
-                        blit_bitmap(pixels, pitch, to_x, to_y, fgp, l.bitmap);
+                        blit_bitmap(screen, to_x, to_y, fgp, l.bitmap);
                     }
                 }
 
@@ -423,15 +441,13 @@ struct Tiler {
 
             const auto& glyph = gi->second;
 
-            blit_bitmap(pixels, pitch, to_x, to_y, fgc, glyph);
+            blit_bitmap(screen, to_x, to_y, fgc, glyph);
         }
 
         if (underline) {
 
-            pixel_t* px = cursor(pixels, pitch, to_x, to_y + to_h - 1);
-
             for (unsigned int w = 0; w < to_w; ++w, ++px) {
-                *px = fgc;
+                set_pixel(screen, to_x + w, to_y + to_h - 1, fgc);
             }
         }
     }
@@ -441,24 +457,19 @@ struct Tiler {
         sw = w / tw;
         sh = h / th;
 
-        std::vector<pixel_t> tmp;
-        tmp.resize(tw*sw*th*sh);
-        screen.swap(tmp);
+        gdImageDestroy(screen);
+
+        screen = gdImageCreateTrueColor(tw*sw, th*sh);
     }
 
     void render(Socket& browser_sock) {
 
-        png_image out;
-        ::memset((void*)&out, 0, sizeof(png_image));
+        int size;
+        void* buff = gdImagePngPtr(screen, &size);
 
-        out.version = PNG_IMAGE_VERSION;
-        out.format = PNG_FORMAT_RGBA;
-        out.width = tiler.tw*tiler.sw;
-        out.height = tiler.th*tiler.sh;
-
-        png_image_write_to_file(&out, "out.png", 0,
-                                (void*)tiler.screen.data(), sizeof(Tiler::pixel_t)*tiler.tw*tiler.sw,
-                                NULL);
+        write_websocket_frame(browser_sock, buff, size);
+        
+        gdFree(buff);
     }
 };
     
@@ -1154,6 +1165,45 @@ struct Protocol_Pty : public Protocol_Base<SOCKET> {
         return false;
     }
 };
+
+
+
+void write_websocket_frame(Socket& browser_sock, void* buff, size_t len) {
+
+    uint8_t magic[14] = {
+        0xF2, // Final frame with binary data.
+        0x80, // Masked. (Except it really isn't, the mask is all zeroes.)
+        0x00, 0x00, // Length extension 1
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00 // Length extension 2
+        0x00, 0x00, 0x00, 0x00 // Mask, set to zero always
+    }; 
+
+    size_t header_len;
+    
+    if (len <= 125) {
+        magic[1] |= len & 0xFF;
+        header_len = 6;
+
+    } else if (len <= 65535) {
+        magic[1] |= 126;
+        magic[2] = (len >> 8) & 0xFF;
+        magic[3] = len & 0xFF;
+        header_len = 8;
+
+    } else {
+        magic[1] = 127;
+        header_len = 14;
+
+        tmp = len;
+        for (size_t i = 9; i >= 2; --i) {
+            magic[i] = tmp & 0xFF;
+            tmp = tmp >> 8;
+        }
+    }
+
+    browser_sock.write(magic, header_len);
+    browser_sock.write(buff, len);
+}
 
 
 template <template <typename> class PROTO, typename SOCK>
