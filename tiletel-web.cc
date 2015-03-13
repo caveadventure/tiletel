@@ -8,6 +8,7 @@
 #include <map>
 
 #include <thread>
+#include <mutex>
 
 #include <gd.h>
 
@@ -176,7 +177,8 @@ struct Tiler {
         }
     }
 
-    static void surface_to_indexed(gdImagePtr tiles, unsigned int tw, unsigned int th, std::unordered_map<uint32_t, indexed_bitmap>& out) {
+    static void surface_to_indexed(gdImagePtr tiles, unsigned int tw, unsigned int th,
+                                   std::unordered_map<uint32_t, indexed_bitmap>& out) {
 
         unsigned int bw = gdImageSX(tiles);
         unsigned int bh = gdImageSY(tiles);
@@ -455,8 +457,8 @@ struct Tiler {
 
     void resize(unsigned int w, unsigned int h) {
 
-        sw = w / tw;
-        sh = h / th;
+        sw = w;
+        sh = h;
 
         gdImageDestroy(screen);
 
@@ -552,8 +554,6 @@ struct VTE {
             tsm_screen_unref(screen);
             throw;
         }
-
-        resize(tiler.sw, tiler.sh);
     }
 
     ~VTE() {
@@ -566,6 +566,10 @@ struct VTE {
         sw = _sw;
         sh = _sh;
 
+        std::cout << "---> resize " << sw << "," << sh << std::endl;
+
+        tiler.resize(sw, sh);
+        
         if (tsm_screen_resize(screen, sw, sh) < 0)
             throw std::runtime_error("Could not resize screen");
     }
@@ -677,13 +681,17 @@ struct Socket {
     Socket(int _fd) : fd(_fd), compression(false) {}
 
     ~Socket() {
-    
+        close();
+    }
+
+    void close() {
+
         if (fd >= 0) {
             ::shutdown(fd, SHUT_RDWR);
             ::close(fd);
         }
     }
-
+    
     int accept() {
 
         int client = ::accept(fd, NULL, NULL);
@@ -701,7 +709,8 @@ struct Socket {
         ssize_t i = ::recv(fd, (void*)out.data(), out.size(), 0);
 
         if (i < 0)
-            throw std::runtime_error("Error receiving data");
+            return false;
+            //throw std::runtime_error("Error receiving data");
 
         out.resize(i);
 
@@ -806,9 +815,13 @@ struct Process {
     }
 
     ~Process() {
-        close(fd);
+        close();
     }
 
+    void close() {
+        ::close(fd);
+    }
+    
     bool recv(std::string& out, bool& more) {
 
         more = false;
@@ -850,7 +863,45 @@ struct Protocol_Base {
 
     VTE<SOCKET>& vte;
 
-    Protocol_Base(VTE<SOCKET>& _vte) : vte(_vte) {}
+    bool schedule_resize;
+    unsigned int sw;
+    unsigned int sh;
+    
+    Protocol_Base(VTE<SOCKET>& _vte) : vte(_vte), schedule_resize(false), sw(0), sh(0) {}
+
+    // Input from the websocket.
+    void input(const std::string& data) {
+
+        if (data.empty())
+            return;
+        
+        unsigned char t = data[0];
+
+        if (t == 'k') {
+            // Unicode input
+            vte.socket.send(data.substr(1));
+
+        } else if (t == 'c') {
+            // Key scancode
+            // TODO
+            unsigned int code = std::stoul(data.substr(1));
+            std::cout << "CODE: " << code << std::endl;
+
+        } else if (t == 'r') {
+            // Resize
+            size_t n;
+            unsigned int w = std::stoul(data.substr(1), &n);
+            unsigned int h = std::stoul(data.substr(n+1));
+
+            w = w / vte.tiler.tw;
+            h = h / vte.tiler.th;
+            
+            schedule_resize = true;
+            sw = w;
+            sh = h;
+        }
+    }
+
 };
 
 
@@ -861,6 +912,9 @@ struct Protocol_Telnet : public Protocol_Base<SOCKET> {
     bool enable_compression;
 
     using Protocol_Base<SOCKET>::vte;
+    using Protocol_Base<SOCKET>::schedule_resize;
+    using Protocol_Base<SOCKET>::sw;
+    using Protocol_Base<SOCKET>::sh;
 
     Protocol_Telnet(VTE<SOCKET>& _vte, unsigned int pt, bool ec) : 
         Protocol_Base<SOCKET>(_vte), polltimeout(pt), enable_compression(ec) {}
@@ -941,7 +995,6 @@ struct Protocol_Telnet : public Protocol_Base<SOCKET> {
         vte.resize(sw, sh);
         vte.redraw(browser_sock);
     }
-
 
     // The meat of the telnet protocol.
     bool multiplexor(Socket& browser_sock) {
@@ -1103,6 +1156,12 @@ struct Protocol_Telnet : public Protocol_Base<SOCKET> {
         vte.feed(rewritten);
         vte.redraw(browser_sock);
 
+        if (schedule_resize) {
+
+            resizer(browser_sock, sw, sh);
+            schedule_resize = false;
+        }
+        
         buff.clear();
         rewritten.clear();
 
@@ -1119,6 +1178,9 @@ struct Protocol_Pty : public Protocol_Base<SOCKET> {
     unsigned int polltimeout;
 
     using Protocol_Base<SOCKET>::vte;
+    using Protocol_Base<SOCKET>::schedule_resize;
+    using Protocol_Base<SOCKET>::sw;
+    using Protocol_Base<SOCKET>::sh;
 
     Protocol_Pty(VTE<SOCKET>& _vte, unsigned int pt, bool ec) :
         Protocol_Base<SOCKET>(_vte), polltimeout(pt) {}
@@ -1153,6 +1215,12 @@ struct Protocol_Pty : public Protocol_Base<SOCKET> {
 
         vte.feed(buff);
         vte.redraw(browser_sock);
+
+        if (schedule_resize) {
+
+            resizer(browser_sock, sw, sh);
+            schedule_resize = false;
+        }
 
         buff.clear();
 
@@ -1200,6 +1268,144 @@ void write_websocket_frame(Socket& browser_sock, void* buff, size_t len) {
     browser_sock.send((const char*)buff, len);
 }
 
+template <typename PROTO>
+bool process_websocket_frame(PROTO& proto, uint8_t opcode, const std::string& data) {
+
+    if (opcode == 8)
+        return false;
+
+    if (opcode == 1 || opcode == 2) {
+        std::cout << "INPUT: " << data << std::endl;
+        proto.input(data);
+    }
+
+    return true;
+}
+
+template <typename PROTO>
+void read_websocket_frames(Socket& browser_sock, PROTO& proto) {
+
+    std::string buff;
+    buff.resize(1024);
+    bool more;
+
+    enum {
+        START,
+        MASK_LEN,
+        LENEXT,
+        MASK,
+        DATA
+    } state = START;
+
+    uint8_t head1 = 0;
+    uint8_t head2 = 0;
+    uint64_t len = 0;
+    uint64_t run = 0;
+    uint8_t mask[4] = { 0, 0, 0, 0 };
+
+    std::string data;
+
+    auto goto_mask_or_data = [&]() {
+
+        if (head2 & 0x80) {
+            state = MASK;
+            run = 4;
+        } else {
+            state = DATA;
+            run = len;
+        }
+    };
+    
+    while (1) {
+
+        if (!browser_sock.recv(buff, more))
+            break;
+
+        for (unsigned int c : buff) {
+            switch (state) {
+
+            case START:
+                head1 = c;
+                state = MASK_LEN;
+                break;
+
+            case MASK_LEN:
+                head2 = c;
+                len = c & 0x7F;
+
+                if (len <= 125) {
+                    goto_mask_or_data();
+
+                } else if (len == 126) {
+                    state = LENEXT;
+                    len = 0;
+                    run = 2;
+
+                } else if (len == 127) {
+                    state = LENEXT;
+                    len = 0;
+                    run = 8;
+                }
+                break;
+
+            case LENEXT:
+                len = len << 8;
+                len = len | c;
+
+                --run;
+                if (run == 0) {
+                    goto_mask_or_data();
+                }
+                break;
+
+            case MASK:
+                mask[4-run] = c;
+
+                --run;
+                if (run == 0) {
+                    state = DATA;
+                    run = len;
+                }
+                break;
+
+            case DATA:
+                data += c;
+
+                if (head2 & 0x80) {
+                    data.back() ^= mask[(len-run) % 4];
+                }
+
+                --run;
+                if (run == 0) {
+
+                    if (head1 & 0x80) {
+
+                        if (!process_websocket_frame(proto, head1 & 0x0F, data))
+                            return;
+
+                        data.clear();
+                    }
+
+                    state = START;
+                }
+            }
+        }
+    }
+}
+
+
+template <typename PROTO>
+void websocket_reader(Socket& browser_sock, PROTO& proto) {
+
+    try {
+        read_websocket_frames(browser_sock, proto);
+
+    } catch (std::exception& e) {
+        std::cerr << "Caught error: " << e.what() << std::endl;
+
+    } catch (...) {
+    }
+}
 
 template <template <typename> class PROTO, typename SOCKET>
 void mainloop_aux(Socket& browser_sock, SOCKET& term_sock, config::Config& cfg) {
@@ -1216,10 +1422,25 @@ void mainloop_aux(Socket& browser_sock, SOCKET& term_sock, config::Config& cfg) 
 
     protocol.resizer(browser_sock, vte.tiler.sw, vte.tiler.sh);
 
-    while (1) {
-        if (protocol.multiplexor(browser_sock))
-            break;
+    std::thread thr(websocket_reader< PROTO<SOCKET> >, std::ref(browser_sock), std::ref(protocol));
+
+    try {
+
+        while (1) {
+            if (protocol.multiplexor(browser_sock))
+                break;
+        }
+
+    } catch (...) {
+
+        browser_sock.close();
+        thr.join();
+
+        throw;
     }
+
+    browser_sock.close();
+    thr.join();
 }
 
 void mainloop(Socket& browser_sock, const config::Config& _cfg) {
