@@ -5,6 +5,7 @@
 
 #include <functional>
 #include <unordered_map>
+#include <map>
 
 #include <thread>
 
@@ -32,6 +33,7 @@ extern "C" {
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
+#include <netdb.h>
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -190,7 +192,7 @@ struct Tiler {
 
         unsigned int ncolors = gdImageColorsTotal(tiles);
 
-        for (int ci = 0; ci < ncolors; ++ci) {
+        for (unsigned int ci = 0; ci < ncolors; ++ci) {
 
             int _r = gdImageRed(tiles, ci);
             int _g = gdImageGreen(tiles, ci);
@@ -233,10 +235,10 @@ struct Tiler {
 
                         int colorix = gdImagePalettePixel(tiles, txx*tw + xx, tyy*th + yy);
                         
-                        int _r = gdImageRed(tiles, ci);
-                        int _g = gdImageGreen(tiles, ci);
-                        int _b = gdImageBlue(tiles, ci);
-                        int _a = gdImageAlpha(tiles, ci);
+                        int _r = gdImageRed(tiles, colorix);
+                        int _g = gdImageGreen(tiles, colorix);
+                        int _b = gdImageBlue(tiles, colorix);
+                        int _a = gdImageAlpha(tiles, colorix);
 
                         uint32_t colorhash = gdTrueColorAlpha(_r, _g, _b, _a);
 
@@ -301,7 +303,7 @@ struct Tiler {
     }
 
     inline int map_color(uint8_t r, uint8_t g, uint8_t b) {
-        return gdTrueColorAlpha(r, g, b);
+        return gdTrueColor(r, g, b);
     }
 
     inline int color_mul(uint8_t cr, uint8_t cg, uint8_t cb, uint8_t r, uint8_t g, uint8_t b) {
@@ -335,7 +337,7 @@ struct Tiler {
 
     inline void blit_bitmap(gdImagePtr pixels, 
                             unsigned int to_x, unsigned int to_y,
-                            pixel_t fgc, const bdf::bitmap& bitmap) {
+                            int fgc, const bdf::bitmap& bitmap) {
 
         unsigned int xx = 0;
         unsigned int yy = 0;
@@ -358,7 +360,6 @@ struct Tiler {
                     set_pixel(pixels, to_x + xx, to_y + yy, fgc);
 
                 ++xx;
-                ++px;
 
                 if (xx >= bitmap.w) {
                     xx = 0;
@@ -421,7 +422,7 @@ struct Tiler {
                         return;
 
                     for (const auto& l : tmpi->second.layers) {
-                        pixel_t fgp = color_mul(l.r, l.g, l.b, fr, fg, fb);
+                        int fgp = color_mul(l.r, l.g, l.b, fr, fg, fb);
                         blit_bitmap(screen, to_x, to_y, fgp, l.bitmap);
                     }
                 }
@@ -446,7 +447,7 @@ struct Tiler {
 
         if (underline) {
 
-            for (unsigned int w = 0; w < to_w; ++w, ++px) {
+            for (unsigned int w = 0; w < to_w; ++w) {
                 set_pixel(screen, to_x + w, to_y + to_h - 1, fgc);
             }
         }
@@ -615,11 +616,6 @@ struct Socket {
 
         throw std::runtime_error(msg);
     }
-
-    Socket(Socket&& other) {
-        *this = other;
-        other.fd = -1;
-    }
     
     Socket(const std::string& host, unsigned int port) : compression(false) {
 
@@ -640,7 +636,7 @@ struct Socket {
 
         serv_addr.sin_family = AF_INET;
 
-        ::memcpy((void*)*serv_addr.sin_addr.s_addr, (void*)server->h_addr, server->h_length);
+        ::memcpy((void*)&serv_addr.sin_addr.s_addr, (void*)server->h_addr, server->h_length);
         serv_addr.sin_port = htons(port);
 
         if (::connect(fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
@@ -656,10 +652,10 @@ struct Socket {
         }
 
         int is_true = 1;
-        if (::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, SETSOCKOPT_TYPE_CAST &is_true, sizeof(is_true)) < 0)
+        if (::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &is_true, sizeof(is_true)) < 0)
             teardown("could not setsockopt(SO_REUSEADDR) : ");
 
-        if (::setsockopt(fd, SOL_TCP, TCP_NODELAY, SETSOCKOPT_TYPE_CAST &is_true, sizeof(is_true)) < 0)
+        if (::setsockopt(fd, SOL_TCP, TCP_NODELAY, &is_true, sizeof(is_true)) < 0)
             teardown("could not setsockopt(TCP_NODELAY) : ");
 
         struct sockaddr_in addr;
@@ -702,7 +698,7 @@ struct Socket {
     
     bool recv_raw(std::string& out) {
 
-        ssize_t tmp = ::recv(fd, (void*)out.data(), out.size(), 0);
+        ssize_t i = ::recv(fd, (void*)out.data(), out.size(), 0);
 
         if (i < 0)
             throw std::runtime_error("Error receiving data");
@@ -1174,7 +1170,7 @@ void write_websocket_frame(Socket& browser_sock, void* buff, size_t len) {
         0xF2, // Final frame with binary data.
         0x80, // Masked. (Except it really isn't, the mask is all zeroes.)
         0x00, 0x00, // Length extension 1
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00 // Length extension 2
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Length extension 2
         0x00, 0x00, 0x00, 0x00 // Mask, set to zero always
     }; 
 
@@ -1194,20 +1190,20 @@ void write_websocket_frame(Socket& browser_sock, void* buff, size_t len) {
         magic[1] = 127;
         header_len = 14;
 
-        tmp = len;
+        size_t tmp = len;
         for (size_t i = 9; i >= 2; --i) {
             magic[i] = tmp & 0xFF;
             tmp = tmp >> 8;
         }
     }
 
-    browser_sock.write(magic, header_len);
-    browser_sock.write(buff, len);
+    browser_sock.send((const char*)magic, header_len);
+    browser_sock.send((const char*)buff, len);
 }
 
 
-template <template <typename> class PROTO, typename SOCK>
-void mainloop_aux(Socket& browser_sock, SOCK& term_sock, const config::Config& cfg) {
+template <template <typename> class PROTO, typename SOCKET>
+void mainloop_aux(Socket& browser_sock, SOCKET& term_sock, config::Config& cfg) {
 
     VTE<SOCKET> vte(term_sock, cfg);
 
@@ -1219,7 +1215,7 @@ void mainloop_aux(Socket& browser_sock, SOCK& term_sock, const config::Config& c
 
     PROTO<SOCKET> protocol(vte, cfg.polling_rate, cfg.compression);
 
-    protocol.resizer(vte.tiler.sw, vte.tiler.sh);
+    protocol.resizer(browser_sock, vte.tiler.sw, vte.tiler.sh);
 
     while (1) {
         if (protocol.multiplexor(browser_sock))
@@ -1227,8 +1223,10 @@ void mainloop_aux(Socket& browser_sock, SOCK& term_sock, const config::Config& c
     }
 }
 
-void mainloop(Socket& browser_sock, const config::Config& cfg) {
+void mainloop(Socket& browser_sock, const config::Config& _cfg) {
 
+    config::Config cfg = _cfg;
+    
     if (cfg.command.size() > 0) {
 
         Process proc(cfg.command);
@@ -1292,23 +1290,32 @@ std::string base64_encode(const unsigned char* bytes, size_t len) {
     return ret;
 }
 
-void handle_http_command(Socket& sock, const config::Config& cfg,
+bool handle_http_command(Socket& sock, const config::Config& cfg,
                          const std::string& method, const std::string& url,
                          const std::string& proto, const std::map<std::string,std::string>& headers) {
-
+  
+    bool ok = true;
+    
     if (method != "GET")
-        return;
+        ok = false;
 
     if (proto != "HTTP/1.0" && proto != "HTTP/1.1")
-        return;
+        ok = false;
 
     if (url != "/run")
-        return;
+        ok = false;
 
     auto hi = headers.find("sec-websocket-key");
 
     if (hi == headers.end())
-        return;
+        ok = false;
+
+    if (!ok) {
+
+        static const std::string error = "HTTP/1.1 404 Not found\r\n\r\n";
+        sock.send(error);
+        return false;
+    }
 
     std::string bullshit = hi->second + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
@@ -1324,12 +1331,14 @@ void handle_http_command(Socket& sock, const config::Config& cfg,
         "Sec-WebSocket-Accept: \r\n";
 
     std::string tmp = reply;
-    reply += bullshit;
-    reply += "\r\n\r\n";
+    tmp += bullshit;
+    tmp += "\r\n\r\n";
 
-    sock.send(reply);
+    sock.send(tmp);
 
     mainloop(sock, cfg);
+
+    return true;
 }
 
 
@@ -1359,6 +1368,15 @@ void read_http_command_aux(Socket& sock, const config::Config& cfg) {
     // This parser is non-compliant: it doesn't handle whitespace within
     // header values or duplicate headers correctly.
 
+    auto add_header = [&]() {
+
+        if (!header_key.empty() || !header_val.empty())
+            headers[header_key] = header_val;
+
+        header_key.clear();
+        header_val.clear();
+    };
+    
     while (1) {
 
         if (!sock.recv(buff, more))
@@ -1378,22 +1396,30 @@ void read_http_command_aux(Socket& sock, const config::Config& cfg) {
                 break;
 
             case PROTO:
-                if (c == '\r') // nothing
+                if (c == '\r') {}
                 else if (c == '\n') state = HEADER_START;
                 else proto += c;
                 break;
 
             case HEADER_START:
-                if (c == '\r') // nothing
-                else if (c == '\n') handle_http_command(sock, cfg, method, url, proto, headers);
+                if (c == '\r') {}
+                else if (c == '\n') {
+
+                    add_header();
+
+                    if (!handle_http_command(sock, cfg, method, url, proto, headers)) {
+                        return;
+                    } else {
+                        method.clear();
+                        url.clear();
+                        proto.clear();
+                        headers.clear();
+                    }
+                }    
                 else if (c == ' ' || c == '\t') state = HEADER_VAL;
                 else {
 
-                    if (!header_key.empty() || !header_val.empty())
-                        headers[header_key] = header_val;
-
-                    header_key.clear();
-                    header_val.clear();
+                    add_header();
                     header_key += ::tolower(c);
                     state = HEADER_KEY;
                 }
@@ -1405,10 +1431,10 @@ void read_http_command_aux(Socket& sock, const config::Config& cfg) {
                 break;
 
             case HEADER_VAL:
-                if (c == '\r') // nothing
+                if (c == '\r') {}
                 else if (c == '\n') state = HEADER_START;
-                else if (c == ' ' || c == '\t') // nothing
-                else header_val += c;
+                else if (c == ' ' || c == '\t') {}
+                else header_val += c; 
             }
         }
     }

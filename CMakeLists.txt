@@ -11,6 +11,10 @@ if(TOOLKIT STREQUAL "Qt")
 
   set(TILETEL_SRC tiletel-qt.cc)
 
+elseif(TOOLKIT STREQUAL "web")
+
+  set(TILETEL_SRC tiletel-web.cc sha1.cc)
+
 else()
 
   set(TILETEL_SRC tiletel-sdl.cc)
@@ -103,6 +107,10 @@ else(WIN32)
   if(TOOLKIT STREQUAL "Qt")
 
     target_link_libraries(tiletel Qt5::Gui Qt5::Network util)
+
+  elseif(TOOLKIT STREQUAL "web")
+
+    target_link_libraries(tiletel gd util)
 
   else(TOOLKIT STREQUAL "Qt")
 
