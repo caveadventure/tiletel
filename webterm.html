@@ -16,10 +16,27 @@
         margin-left: auto;
         margin-right: auto;
       }
+
+      #error {
+        position: absolute;
+        left: 10px;
+        top: 10px;
+        z-index: 1;
+        color: #FF0404;
+        font-size: 24px;
+        visibility: hidden;
+      }
     </style>
   </head>
   <body>
     <script type="text/javascript">
+
+      // The list of supported non-text keys.
+      // tab, esc, arrows
+      var keys = [ 9, 27, 37, 38, 39, 40 ];
+
+      var special_keys = {};
+      for (var j = 0; j < keys.length; j++) special_keys[keys[j]] = true;
 
       var socket = new WebSocket('ws://localhost:8080/run');
       socket.binaryType = 'arraybuffer';
@@ -31,53 +48,68 @@
       };
 
       var pressor = function(event) {
-
+          console.log("Keypress: " + event.key + " " + event.which + " " + event.keyCode + " " + event.keyIdentifier);
           if (event.which > 0) {
-
               socket.send('k'+String.fromCharCode(event.which));
-
-          } else if (event.keyCode > 0) {
-              socket.send('c'+event.keyCode);
+              event.preventDefault();
           }
       };
 
-      try {
-          socket.onopen = function() {
-              document.body.style.backgroundColor = '#000f00';
-              resizer();
+      var pressor2 = function(event) {
+          console.log("Keydown: " + event.key + " " + event.which + " " + event.keyCode + " " + event.keyIdentifier);
+          if (event.ctrlKey || event.metaKey || event.keyCode in special_keys) {
+              socket.send('c' + event.keyCode + ' ' + (event.ctrlKey || event.metaKey ? '1' : '0'));
+              event.preventDefault();
           }
-
-          socket.onmessage = function(msg) {
-              if (msg.data instanceof ArrayBuffer) {
-
-                  var length = msg.data.byteLength;
-                  var blob = new Blob([msg.data],{type:'image/png'});
-                  var url = URL.createObjectURL(blob);
-                  var image = document.getElementById('image');
-                  image.src = url;
-              }
-          }
-
-          socket.onclose = function(){
-              document.body.style.backgroundColor = '#0F0F0F';
-              document.getElementById('image').style.opacity = 0.5;
-          }
-
-          socket.onerror = function(){
-              document.body.style.backgroundColor = '#ff4040';
-              document.getElementById('image').style.opacity = 0.5;
-          }
-
-      } catch(exception) {
-          document.body.style.backgroundColor = '#ff4040';
-          console.log('Error: ' + exception);
       }
 
-      window.addEventListener("keypress", pressor, false);
+      var open = function() {
+          document.body.style.backgroundColor = '#000f00';
+          document.getElementById('error').style.visibility = 'hidden';
+          resizer();
+      }
+
+      var message = function(msg) {
+          if (msg.data instanceof ArrayBuffer) {
+
+              var blob = new Blob([msg.data],{type:'image/png'});
+              var url = URL.createObjectURL(blob);
+
+              var image = document.getElementById('image');
+              URL.revokeObjectURL(image.src);
+              image.src = url;
+          }
+      }
+
+      var close = function() {
+          console.log("socket closed");
+          document.body.style.backgroundColor = '#2F2F2F';
+          document.getElementById('image').style.opacity = 0.5;
+      }
+
+      var error = function() {
+          console.log("console errored");
+          document.body.style.backgroundColor = '#ff4040';
+          document.getElementById('error').style.visibility = 'visible';
+      }
+
+      var reloader = function() {
+          socket.close();
+      }
+
+      socket.addEventListener("open", open, true);
+      socket.addEventListener("message", message, true);
+      socket.addEventListener("close", close, true);
+      socket.addEventListener("error", error, true);
+      window.addEventListener("keypress", pressor, true);
+      window.addEventListener("keydown", pressor2, true);
       window.addEventListener("resize", resizer, false);
       window.addEventListener("orientationchange", resizer, false);
+      window.addEventListener("unload", reloader, false);
 
     </script>
+
+    <div id="error">Error while connecting to server.</div>
 
     <div id="fullscreen">
       <img id="image">

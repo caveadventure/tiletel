@@ -39,9 +39,10 @@ extern "C" {
 #include <stdlib.h>
 #include <unistd.h>
 #include <pty.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #include <ctype.h>
-
 
 struct Socket;
 
@@ -819,7 +820,13 @@ struct Process {
     }
 
     void close() {
-        ::close(fd);
+        if (fd >= 0) {
+            ::close(fd);
+            kill(pid, SIGTERM);
+            int tmp;
+            ::wait(&tmp);
+            fd = -1;
+        }
     }
     
     bool recv(std::string& out, bool& more) {
@@ -882,6 +889,14 @@ struct Protocol_Base {
     // Input from the websocket.
     void input(const std::string& data) {
 
+        static std::unordered_map<unsigned int, uint32_t> keycodes =
+            { {  9, XKB_KEY_NoSymbol },
+              { 27, XKB_KEY_NoSymbol, },
+              { 37, XKB_KEY_Left },
+              { 38, XKB_KEY_Up },
+              { 39, XKB_KEY_Right },
+              { 40, XKB_KEY_Down } };
+        
         if (data.empty())
             return;
         
@@ -893,9 +908,19 @@ struct Protocol_Base {
 
         } else if (t == 'c') {
             // Key scancode
-            // TODO
-            unsigned int code = std::stoul(data.substr(1));
-            std::cout << "CODE: " << code << std::endl;
+            size_t n;
+            unsigned int code = std::stoul(data.substr(1), &n);
+            bool ctrl = std::stoul(data.substr(n+1));
+
+            auto i = keycodes.find(code);
+
+            if (ctrl || i != keycodes.end()) {
+
+                uint32_t sym = i->second;
+                unsigned char chr = (sym == XKB_KEY_NoSymbol ? code : 0);
+                unsigned int mods = (ctrl ? TSM_CONTROL_MASK : 0);
+                tsm_vte_handle_keyboard(vte.vte, sym, chr, mods, chr);
+            }
 
         } else if (t == 'r') {
             // Resize
@@ -1399,6 +1424,9 @@ void read_websocket_frames(Socket& browser_sock, PROTO& proto) {
 template <typename PROTO>
 void websocket_reader(Socket& browser_sock, PROTO& proto) {
 
+    // Read keyboard input from browser and send it to
+    // program.
+    
     try {
         read_websocket_frames(browser_sock, proto);
 
@@ -1407,11 +1435,22 @@ void websocket_reader(Socket& browser_sock, PROTO& proto) {
 
     } catch (...) {
     }
+
+    // If the browser stops communicating, close connection
+    // to program too.
+    
+    try {
+        proto.vte.socket.close();
+    } catch (...) {
+    }
 }
 
 template <template <typename> class PROTO, typename SOCKET>
 void mainloop_aux(Socket& browser_sock, SOCKET& term_sock, config::Config& cfg) {
 
+    // Create a virtual terminal and connect it to a program
+    // outputting VT100 codes.
+    
     VTE<SOCKET> vte(term_sock, cfg);
 
     if (cfg.palette.size() > 0) {
@@ -1424,8 +1463,14 @@ void mainloop_aux(Socket& browser_sock, SOCKET& term_sock, config::Config& cfg) 
 
     protocol.resizer(browser_sock, vte.tiler.sw, vte.tiler.sh);
 
+    // Read keyboard input from browser and proxy it to the virtual terminal.
+
     std::thread thr(websocket_reader< PROTO<SOCKET> >, std::ref(browser_sock), std::ref(protocol));
 
+    // Read (decode) data from the program and write it to
+    // virtual terminal; capture virtual terminal output and send it
+    // to browser.
+    
     try {
 
         while (1) {
@@ -1440,6 +1485,8 @@ void mainloop_aux(Socket& browser_sock, SOCKET& term_sock, config::Config& cfg) 
 
         throw;
     }
+
+    // When program stops communicating close socket to browser.
 
     browser_sock.close();
     thr.join();
@@ -1523,11 +1570,6 @@ bool handle_http_command(Socket& sock, const config::Config& cfg,
                          const std::string& method, const std::string& url,
                          const std::string& proto, const std::map<std::string,std::string>& headers) {
 
-    std::cout << "[" << method << "][" << proto << "][" << url << "]" << std::endl;
-    for (const auto& z : headers) {
-        std::cout << "  " << z.first << ":[" << z.second << "]" << std::endl;
-    }
-
     bool ok = true;
     
     if (method != "GET")
@@ -1568,8 +1610,6 @@ bool handle_http_command(Socket& sock, const config::Config& cfg,
     tmp += bullshit;
     tmp += "\r\n\r\n";
 
-    std::cout << "{" << tmp << "}" << std::endl;
-    
     sock.send(tmp);
 
     mainloop(sock, cfg);

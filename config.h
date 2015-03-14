@@ -2144,6 +2144,7 @@ case 138:
 
     tsm_utf8_mach_free(utf8_mach);
 
+    ::fclose(fn);
 }
 
 }

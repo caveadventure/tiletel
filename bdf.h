@@ -2334,6 +2334,8 @@ case 186:
             g.pitch = g.w / 8;
         }
     }
+
+    ::fclose(fn);
 }
 
 }

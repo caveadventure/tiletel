@@ -235,6 +235,7 @@ void parse_config(const std::string& filename, Config& out) {
 
     tsm_utf8_mach_free(utf8_mach);
 
+    ::fclose(fn);
 }
 
 }

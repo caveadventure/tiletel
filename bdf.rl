@@ -245,6 +245,8 @@ void parse_bdf(const std::string& filename, Font& out) {
             g.pitch = g.w / 8;
         }
     }
+
+    ::fclose(fn);
 }
 
 }
