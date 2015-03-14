@@ -869,6 +869,16 @@ struct Protocol_Base {
     
     Protocol_Base(VTE<SOCKET>& _vte) : vte(_vte), schedule_resize(false), sw(0), sh(0) {}
 
+    virtual void resizer(Socket&, unsigned int, unsigned int);
+    
+    void check_for_resize(Socket& browser_sock) {
+
+        if (schedule_resize) {
+            resizer(browser_sock, sw, sh);
+            schedule_resize = false;
+        }
+    }
+
     // Input from the websocket.
     void input(const std::string& data) {
 
@@ -912,9 +922,7 @@ struct Protocol_Telnet : public Protocol_Base<SOCKET> {
     bool enable_compression;
 
     using Protocol_Base<SOCKET>::vte;
-    using Protocol_Base<SOCKET>::schedule_resize;
-    using Protocol_Base<SOCKET>::sw;
-    using Protocol_Base<SOCKET>::sh;
+    using Protocol_Base<SOCKET>::check_for_resize;
 
     Protocol_Telnet(VTE<SOCKET>& _vte, unsigned int pt, bool ec) : 
         Protocol_Base<SOCKET>(_vte), polltimeout(pt), enable_compression(ec) {}
@@ -1020,6 +1028,8 @@ struct Protocol_Telnet : public Protocol_Base<SOCKET> {
         while (1) {
 
             buff.resize(16*1024);
+
+            check_for_resize(browser_sock);
 
             if (!vte.socket.recv(buff, more)) {
 
@@ -1156,11 +1166,7 @@ struct Protocol_Telnet : public Protocol_Base<SOCKET> {
         vte.feed(rewritten);
         vte.redraw(browser_sock);
 
-        if (schedule_resize) {
-
-            resizer(browser_sock, sw, sh);
-            schedule_resize = false;
-        }
+        check_for_resize(browser_sock);
         
         buff.clear();
         rewritten.clear();
@@ -1178,9 +1184,7 @@ struct Protocol_Pty : public Protocol_Base<SOCKET> {
     unsigned int polltimeout;
 
     using Protocol_Base<SOCKET>::vte;
-    using Protocol_Base<SOCKET>::schedule_resize;
-    using Protocol_Base<SOCKET>::sw;
-    using Protocol_Base<SOCKET>::sh;
+    using Protocol_Base<SOCKET>::check_for_resize;
 
     Protocol_Pty(VTE<SOCKET>& _vte, unsigned int pt, bool ec) :
         Protocol_Base<SOCKET>(_vte), polltimeout(pt) {}
@@ -1209,6 +1213,8 @@ struct Protocol_Pty : public Protocol_Base<SOCKET> {
 
         buff.resize(16*1024);
 
+        check_for_resize(browser_sock);
+
         if (!vte.socket.recv(buff, more)) {
             return true;
         }
@@ -1216,11 +1222,7 @@ struct Protocol_Pty : public Protocol_Base<SOCKET> {
         vte.feed(buff);
         vte.redraw(browser_sock);
 
-        if (schedule_resize) {
-
-            resizer(browser_sock, sw, sh);
-            schedule_resize = false;
-        }
+        check_for_resize(browser_sock);
 
         buff.clear();
 

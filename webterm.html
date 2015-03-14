@@ -54,17 +54,14 @@
           }
 
           socket.onmessage = function(msg) {
-              var arrayBuffer = msg.data;
-              var bytes = new Uint8Array(arrayBuffer);
-              var blob = new Blob([bytes.buffer]);
+              if (msg.data instanceof ArrayBuffer) {
 
-              var image = document.getElementById('image');
-
-              var reader = new FileReader();
-              reader.onload = function(e) {
-                  image.src = e.target.result;
-              };
-              reader.readAsDataURL(blob);
+                  var length = msg.data.byteLength;
+                  var blob = new Blob([msg.data],{type:'image/png'});
+                  var url = URL.createObjectURL(blob);
+                  var image = document.getElementById('image');
+                  image.src = url;
+              }
           }
 
           socket.onclose = function(){
