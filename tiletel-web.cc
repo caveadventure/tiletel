@@ -44,6 +44,8 @@ extern "C" {
 
 #include <ctype.h>
 
+
+
 struct Socket;
 
 void write_websocket_frame(Socket&, void*, size_t);
@@ -469,10 +471,10 @@ struct Tiler {
     void render(Socket& browser_sock) {
 
         int size;
-        void* buff = gdImagePngPtr(screen, &size);
+        void* buff = gdImageGifPtr(screen, &size);
 
         write_websocket_frame(browser_sock, buff, size);
-        
+
         gdFree(buff);
     }
 };
@@ -916,7 +918,7 @@ struct Protocol_Base {
 
             if (ctrl || i != keycodes.end()) {
 
-                uint32_t sym = i->second;
+                uint32_t sym = (i == keycodes.end() ? XKB_KEY_NoSymbol : i->second);
                 unsigned char chr = (sym == XKB_KEY_NoSymbol ? code : 0);
                 unsigned int mods = (ctrl ? TSM_CONTROL_MASK : 0);
                 tsm_vte_handle_keyboard(vte.vte, sym, chr, mods, chr);
@@ -1261,6 +1263,8 @@ struct Protocol_Pty : public Protocol_Base<SOCKET> {
 
 void write_websocket_frame(Socket& browser_sock, void* buff, size_t len) {
 
+    std::cout << "Writing websocket frame of length " << len << std::endl;
+    
     uint8_t magic[14] = {
         0x82, // Final frame with binary data.
         0x00, // Not masked.

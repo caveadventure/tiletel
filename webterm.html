@@ -24,6 +24,7 @@
         z-index: 1;
         color: #FF0404;
         font-size: 24px;
+        text-shadow: 1px 1px white;
         visibility: hidden;
       }
     </style>
@@ -72,7 +73,7 @@
       var message = function(msg) {
           if (msg.data instanceof ArrayBuffer) {
 
-              var blob = new Blob([msg.data],{type:'image/png'});
+              var blob = new Blob([msg.data],{type:'image/gif'});
               var url = URL.createObjectURL(blob);
 
               var image = document.getElementById('image');
