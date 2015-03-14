@@ -3,11 +3,6 @@
   <head>
     <meta charset="UTF-8">
     <style>
-      #status {
-        background-color: #0A0A0A;
-        font: 12px monospace;
-      }
-
       #fullscreen {
         position: absolute;
         top: 0;
@@ -49,7 +44,6 @@
       try {
           socket.onopen = function() {
               document.body.style.backgroundColor = '#000f00';
-              //document.getElementById('status').textContent = 'Connection opened';
               resizer();
           }
 
@@ -65,19 +59,18 @@
           }
 
           socket.onclose = function(){
-              document.body.style.backgroundColor = '#F0F0F0';
-              //document.getElementById('status').textContent = 'Connection closed';
+              document.body.style.backgroundColor = '#0F0F0F';
+              document.getElementById('image').style.opacity = 0.5;
           }
 
           socket.onerror = function(){
               document.body.style.backgroundColor = '#ff4040';
-              //document.getElementById('status').textContent = 'Error!';
+              document.getElementById('image').style.opacity = 0.5;
           }
 
       } catch(exception) {
           document.body.style.backgroundColor = '#ff4040';
           console.log('Error: ' + exception);
-          //document.getElementById('status').textContent = 'Error! (' + exception + ')';
       }
 
       window.addEventListener("keypress", pressor, false);
