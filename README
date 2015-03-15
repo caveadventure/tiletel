@@ -3,7 +3,6 @@ It includes support for all 65535 Unicode characters, including the Asian ones.
 
 It is meant for use as a game client, but will work equally well as a generic telnet client or terminal emulator too.
 
-
 Command line options:
 
  -c <file>
@@ -26,17 +25,18 @@ See default.cfg for other options that can be set through the config file. (Not 
 
 The source code is hosted here: https://bitbucket.org/caveadventure/tiletel
 
-The code comes in two versions: one that uses the SDL2 library, and one that uses the Qt library.
+The code comes in three versions: one that uses the SDL2 library, one that uses the Qt library, and as a web server that serves images to a web-browser client.
 
-You will need to make a choice between the two, depending on your preferences and system setup.
+You will need to make a choice between the three, depending on your preferences and system setup.
 
-How to compile and install on a Unix-like system:
+See README.webtelnet for instructions for the web server solution.
+
+How to compile and install the desktop client on a Unix-like system:
 
  $ mkdir build
  $ cd build
  $ cmake .. 
    (For the SDL2 version.)
- $ cmake .. -DTOOLKIT=Qt
-   (For the Qt version.)
- $ make
- $ cp ../*.cfg ../*.bdf ../*.png tiletel <your destination directory>
+ $ cmake .. -DTOOLKIT=Qt -DCMAKE_INSTALL_PREFIX=<your destination directory>
+   (For the Qt version; 'SDL' for the SDL version.)
+ $ make install

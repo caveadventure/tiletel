@@ -8,6 +8,9 @@ To compile the VT100-to-web-browser proxy:
 
 Also check out the provided systemd unit in 'platform/web/tiletel.service'.
 
+You will need the GD library to compile. (http://libgd.org)
+Install it via your package manager.
+
 Edit /opt/tiletel/default.cfg to change where to connect:
 
 To proxy a telnet connection:
