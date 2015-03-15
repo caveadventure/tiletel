@@ -22,3 +22,8 @@ To proxy the input and output of a program launched locally:
   command "<program>" "<arg1>" "<arg2>"...
 
 
+Open 'webterm.html' to interact with the terminal in a browser.
+By default it will connect to localhost on port 8080; change
+'localhost' to some other host name if you need to. (The port 8080
+is currently hardcoded into the proxy.)
+
