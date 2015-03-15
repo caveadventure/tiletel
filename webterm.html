@@ -75,8 +75,8 @@
 
       var pressor2 = function(event) {
           console.log("Keydown: " + event.key + " " + event.which + " " + event.keyCode + " " + event.keyIdentifier);
-          if (event.ctrlKey || event.metaKey || event.keyCode in special_keys) {
-              socket.send('c' + event.keyCode + ' ' + (event.ctrlKey || event.metaKey ? '1' : '0'));
+          if (event.ctrlKey || event.keyCode in special_keys) {
+              socket.send('c' + event.keyCode + ' ' + (event.ctrlKey ? '1' : '0'));
               event.preventDefault();
           }
       }
