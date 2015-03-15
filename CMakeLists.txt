@@ -120,6 +120,6 @@ else(WIN32)
 
 endif(WIN32)
 
-#install(TARGETS tiletel DESTINATION games/tiletel)
-#install(FILES tiles.png DESTINATION games/tiletel)
+install(TARGETS tiletel DESTINATION tiletel)
+install(FILES default.cfg terminus.bdf fullwidth16.bdf unifont.bdf DESTINATION tiletel)
 

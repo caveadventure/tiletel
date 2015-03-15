@@ -1,0 +1,21 @@
+
+To compile the VT100-to-web-browser proxy:
+
+  $ mkdir build
+  $ cd build
+  $ cmake .. -DCMAKE_INSTALL_PREFIX=/opt -DTOOLKIT=web
+  $ make install
+
+Also check out the provided systemd unit in 'platform/web/tiletel.service'.
+
+Edit /opt/tiletel/default.cfg to change where to connect:
+
+To proxy a telnet connection:
+
+  connect_to "<host>" <port>;
+
+To proxy the input and output of a program launched locally:
+
+  command "<program>" "<arg1>" "<arg2>"...
+
+
