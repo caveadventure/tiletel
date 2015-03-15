@@ -33,8 +33,10 @@
     <script type="text/javascript">
 
       // The list of supported non-text keys.
-      // tab, esc, arrows
-      var keys = [ 9, 27, 37, 38, 39, 40 ];
+      // backspace, tab, esc, arrows, numeric keypad, F keys
+      var keys = [ 8, 9, 27, 37, 38, 39, 40,
+                   12, 33, 34, 35, 36,
+                   112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123 ];
 
       var special_keys = {};
       for (var j = 0; j < keys.length; j++) special_keys[keys[j]] = true;

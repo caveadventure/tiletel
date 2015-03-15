@@ -569,8 +569,6 @@ struct VTE {
         sw = _sw;
         sh = _sh;
 
-        std::cout << "---> resize " << sw << "," << sh << std::endl;
-
         tiler.resize(sw, sh);
         
         if (tsm_screen_resize(screen, sw, sh) < 0)
@@ -892,12 +890,30 @@ struct Protocol_Base {
     void input(const std::string& data) {
 
         static std::unordered_map<unsigned int, uint32_t> keycodes =
-            { {  9, XKB_KEY_NoSymbol },
+            { {  8, XKB_KEY_NoSymbol },
+              {  9, XKB_KEY_NoSymbol },
               { 27, XKB_KEY_NoSymbol, },
               { 37, XKB_KEY_Left },
               { 38, XKB_KEY_Up },
               { 39, XKB_KEY_Right },
-              { 40, XKB_KEY_Down } };
+              { 40, XKB_KEY_Down },
+              { 12, XKB_KEY_period },
+              { 33, XKB_KEY_KP_Page_Up },
+              { 34, XKB_KEY_KP_Page_Down },
+              { 35, XKB_KEY_Select },
+              { 36, XKB_KEY_Find },
+              { 112, XKB_KEY_F1 },
+              { 113, XKB_KEY_F2 },
+              { 114, XKB_KEY_F3 },
+              { 115, XKB_KEY_F4 },
+              { 116, XKB_KEY_F5 },
+              { 117, XKB_KEY_F6 },
+              { 118, XKB_KEY_F7 },
+              { 119, XKB_KEY_F8 },
+              { 120, XKB_KEY_F9 },
+              { 121, XKB_KEY_F10 },
+              { 122, XKB_KEY_F11 },
+              { 123, XKB_KEY_F12 } };
         
         if (data.empty())
             return;
@@ -1263,8 +1279,6 @@ struct Protocol_Pty : public Protocol_Base<SOCKET> {
 
 void write_websocket_frame(Socket& browser_sock, void* buff, size_t len) {
 
-    std::cout << "Writing websocket frame of length " << len << std::endl;
-    
     uint8_t magic[14] = {
         0x82, // Final frame with binary data.
         0x00, // Not masked.
@@ -1306,7 +1320,6 @@ bool process_websocket_frame(PROTO& proto, uint8_t opcode, const std::string& da
         return false;
 
     if (opcode == 1 || opcode == 2) {
-        std::cout << "INPUT: " << data << std::endl;
         proto.input(data);
     }
 
