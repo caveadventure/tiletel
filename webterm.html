@@ -18,6 +18,20 @@
         margin-right: auto;
       }
 
+      #input {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        height: 16px;
+        width: 100%;
+        background-color: #101F10;
+        color: #101F10;
+        font-size: 12px;
+        text-shadow: 0px 0px white;
+        border: none;
+        padding-top: 0px;
+      }
+
       #error {
         position: absolute;
         left: 10px;
@@ -47,7 +61,7 @@
 
       var resizer = function() {
           var w = document.getElementById("fullscreen").clientWidth - 3;
-          var h = document.getElementById("fullscreen").clientHeight - 3;
+          var h = document.getElementById("fullscreen").clientHeight - 3 - 16;
           socket.send('r' + w + ' ' + h);
       };
 
@@ -93,7 +107,7 @@
 
       var error = function() {
           console.log("console errored");
-          document.body.style.backgroundColor = '#ff4040';
+          document.body.style.backgroundColor = '#ff0000';
           document.getElementById('error').style.visibility = 'visible';
       }
 
@@ -118,6 +132,8 @@
     <div id="fullscreen">
       <img id="image">
     </div>
+
+    <input id="input" type="text" value="Tap here if you need an on-screen keyboard." autofocus></input>
 
   </body>
 </html>
