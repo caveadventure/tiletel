@@ -1,0 +1,9 @@
+[Unit]
+Description=VT100 to web browser proxy server
+
+[Service]
+Type=idle
+ExecStart=/opt/tiletel/tiletel
+Restart=always
+WorkingDirectory=/opt/tiletel
+
