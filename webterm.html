@@ -71,7 +71,6 @@
       };
 
       var pressor = function(event) {
-          console.log("Keypress: " + event.key + " " + event.which + " " + event.keyCode + " " + event.keyIdentifier);
           if (event.which > 0) {
               socket.send('k'+String.fromCharCode(event.which));
               event.preventDefault();
@@ -79,7 +78,6 @@
       };
 
       var pressor2 = function(event) {
-          console.log("Keydown: " + event.key + " " + event.which + " " + event.keyCode + " " + event.keyIdentifier);
           if (event.ctrlKey || event.keyCode in special_keys) {
               socket.send('c' + event.keyCode + ' ' + (event.ctrlKey ? '1' : '0'));
               event.preventDefault();
@@ -98,10 +96,12 @@
               var blob = new Blob([msg.data],{type:'image/gif'});
               var url = URL.createObjectURL(blob);
 
-              var image = document.getElementById('image');
-              URL.revokeObjectURL(image.src);
+              var image = new Image();
+              image.onload = function() {
+                  document.getElementById('image').src = image.src;
+              };
               image.src = url;
-          }
+        }
       }
 
       var close = function() {
