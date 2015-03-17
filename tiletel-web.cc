@@ -23,11 +23,17 @@ extern "C" {
 #include "bdf.h"
 #include "config.h"
 
-#include <sys/time.h>
-
 #include "lz77.h"
 
 #include "sha1.h"
+
+#include <stdlib.h>
+#include <unistd.h>
+#include <pty.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <sys/stat.h>
 
 #include <sys/socket.h>
 
@@ -35,12 +41,6 @@ extern "C" {
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
 #include <netdb.h>
-
-#include <stdlib.h>
-#include <unistd.h>
-#include <pty.h>
-#include <sys/types.h>
-#include <sys/wait.h>
 
 #include <ctype.h>
 
@@ -1509,9 +1509,16 @@ void mainloop_aux(Socket& browser_sock, SOCKET& term_sock, config::Config& cfg) 
     thr.join();
 }
 
-void mainloop(Socket& browser_sock, const config::Config& _cfg) {
+void mainloop(Socket& browser_sock, const config::Config& _cfg, const std::string& path) {
 
-    config::Config cfg = _cfg;
+    config::Config cfg;
+
+    if (path.empty()) {
+        cfg = _cfg;
+
+    } else {
+        config::parse_config(path, cfg);
+    }
     
     if (cfg.command.size() > 0) {
 
@@ -1595,13 +1602,29 @@ bool handle_http_command(Socket& sock, const config::Config& cfg,
     if (proto != "HTTP/1.0" && proto != "HTTP/1.1")
         ok = false;
 
-    if (url != "/run")
-        ok = false;
-
     auto hi = headers.find("sec-websocket-key");
 
     if (hi == headers.end())
         ok = false;
+
+    std::string path = url;
+
+    if (path.size() > 0)
+        path.erase(path.begin());
+
+    if (!path.empty()) {
+
+        if (path.find_first_of("./") != std::string::npos) {
+            ok = false;
+
+        } else {
+            path = path + ".cfg";
+
+            struct stat tmp;
+            if (::stat(path.c_str(), &tmp) != 0)
+                ok = false;
+        }
+    }
 
     if (!ok) {
 
@@ -1629,7 +1652,7 @@ bool handle_http_command(Socket& sock, const config::Config& cfg,
 
     sock.send(tmp);
 
-    mainloop(sock, cfg);
+    mainloop(sock, cfg, path);
 
     return true;
 }

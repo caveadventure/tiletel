@@ -24,6 +24,13 @@ To proxy the input and output of a program launched locally:
 
 Open 'webterm.html' to interact with the terminal in a browser.
 By default it will connect to localhost on port 8080; change
-'localhost' to some other host name if you need to. (The port 8080
-is currently hardcoded into the proxy.)
+'localhost' to the host name of the machine where 'tiletel' is
+running. (The port 8080 is currently hardcoded into the proxy.)
+
+Connecting to "/" will use the settings in 'default.cfg';
+connecting to some other url will use the settings file with the
+same name as the url. (So, for example, connecting to "/nethack"
+will use "nethack.cfg" as the config.) Dots and slashes ('.', '/')
+are not allowed in config file names. Config files must be stored
+in the current working directory of 'tiletel'.
 

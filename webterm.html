@@ -47,6 +47,11 @@
   <body>
     <script type="text/javascript">
 
+      // Change this to the host where you installed the proxy server.
+      // (The port is always 8080; the path is the config to use. '/' means 'default.cfg')
+
+      var server = 'ws://localhost:8080/';
+
       // The list of supported non-text keys.
       // backspace, tab, esc, arrows, numeric keypad, F keys
       var keys = [ 8, 9, 27, 37, 38, 39, 40,
@@ -56,7 +61,7 @@
       var special_keys = {};
       for (var j = 0; j < keys.length; j++) special_keys[keys[j]] = true;
 
-      var socket = new WebSocket('ws://localhost:8080/run');
+      var socket = new WebSocket(server);
       socket.binaryType = 'arraybuffer';
 
       var resizer = function() {
