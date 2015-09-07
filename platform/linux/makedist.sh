@@ -8,6 +8,10 @@ mkdir dist/bin
 
 cp $BUILDDIR/tiletel dist/bin
 cp `ldd dist/bin/tiletel | grep -o '\W/[^ ]*'` dist/bin
+
+# HACK
+cp /usr/lib/libresolv.so.2 /usr/lib/libnss_dns.so.2 dist/bin
+
 cp $DATADIR/*.bdf $DATADIR/*.png $DATADIR/*.cfg $DATADIR/LICENSES $DATADIR/README dist
 
 cat << "EOF" > dist/tiletel
