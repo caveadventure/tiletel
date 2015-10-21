@@ -15,6 +15,10 @@ elseif(TOOLKIT STREQUAL "web")
 
   set(TILETEL_SRC tiletel-web.cc sha1.cc)
 
+elseif(TOOLKIT STREQUAL "dfb")
+
+  set(TILETEL_SRC tiletel-dfb.cc)
+
 else()
 
   set(TILETEL_SRC tiletel-sdl.cc)
@@ -40,6 +44,10 @@ SET(ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 SET(INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/dist)
 
 include_directories(../libtsm libtsm)
+
+if(TOOLKIT STREQUAL "dfb")
+  include_directories(/usr/include/directfb)
+endif()
 
 find_program(RAGEL ragel)
 
@@ -112,10 +120,14 @@ else(WIN32)
 
     target_link_libraries(tiletel gd util)
 
+  elseif(TOOLKIT STREQUAL "dfb")
+
+    target_link_libraries(tiletel directfb ++dfb util)
+
   else(TOOLKIT STREQUAL "Qt")
 
     target_link_libraries(tiletel SDL2 SDL2_net SDL2_image util)
-
+ 
   endif(TOOLKIT STREQUAL "Qt")
 
 endif(WIN32)
