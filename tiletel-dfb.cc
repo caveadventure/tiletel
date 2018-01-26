@@ -806,7 +806,7 @@ struct Process {
 
         if (pid == 0) {
 
-            setenv("TERM", term_type, 1);
+            setenv("TERM", term_type.c_str(), 1);
 
             char** argv = new char*[cmd.size() + 1];
 

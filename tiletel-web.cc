@@ -792,7 +792,7 @@ struct Process {
 
         if (pid == 0) {
 
-            setenv("TERM", term_type, 1);
+            setenv("TERM", term_type.c_str(), 1);
 
             char** argv = new char*[cmd.size() + 1];
 
@@ -1231,7 +1231,7 @@ struct Protocol_Pty : public Protocol_Base<SOCKET> {
     using Protocol_Base<SOCKET>::vte;
     using Protocol_Base<SOCKET>::check_for_resize;
 
-    Protocol_Pty(VTE<SOCKET>& _vte, unsigned int pt, bool ec) :
+    Protocol_Pty(VTE<SOCKET>& _vte, unsigned int pt, bool ec, const std::string& tt) :
         Protocol_Base<SOCKET>(_vte), polltimeout(pt) {}
 
     void send_resize(unsigned int sw, unsigned int sh) {

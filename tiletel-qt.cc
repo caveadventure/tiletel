@@ -758,7 +758,7 @@ struct Process {
 
         if (pid == 0) {
 
-            setenv("TERM", term_type, 1);
+            setenv("TERM", term_type.c_str(), 1);
 
             char** argv = new char*[cmd.size() + 1];
 
@@ -982,7 +982,7 @@ struct Protocol_Telnet : public Protocol_Base<SOCKET> {
 
     using Protocol_Base<SOCKET>::vte;
 
-    Protocol_Telnet(VTE<SOCKET>& _vte, unsigned int pt, bool ec, cons std::string& tt) : 
+    Protocol_Telnet(VTE<SOCKET>& _vte, unsigned int pt, bool ec, const std::string& tt) : 
         Protocol_Base<SOCKET>(_vte), polltimeout(pt), enable_compression(ec), term_type(tt) {}
 
     // Send a resize event to the telnet server.
