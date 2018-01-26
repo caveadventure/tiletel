@@ -190,9 +190,11 @@ void parse_config(const std::string& filename, Config& out) {
 
         command = 'command' ( ws1 string %{ out.command.push_back(state.match); } )+ ws ';';
 
+        term_type = 'term_type' ( ws1 string %{ out.term_type = state.match; } )+ ws ';';
+
         config = 
             fonts | tiles | tilesize | screensize | fullscreen | compression |
-            connect_to | polling_rate | palette | map | disable_tiles | cursor | command
+            connect_to | polling_rate | palette | map | disable_tiles | cursor | command | term_type
             ;
 
       main := (ws config ws)+;

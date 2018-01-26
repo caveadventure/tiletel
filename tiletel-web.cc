@@ -780,7 +780,7 @@ struct Process {
     int fd;
     pid_t pid;
 
-    Process(const std::vector<std::string>& cmd) {
+    Process(const std::vector<std::string>& cmd, const std::string& term_type) {
 
         if (cmd.size() == 0)
             throw std::runtime_error("Need a command to run.");
@@ -792,7 +792,7 @@ struct Process {
 
         if (pid == 0) {
 
-            setenv("TERM", "xterm", 1);
+            setenv("TERM", term_type, 1);
 
             char** argv = new char*[cmd.size() + 1];
 
@@ -964,11 +964,13 @@ struct Protocol_Telnet : public Protocol_Base<SOCKET> {
     unsigned int polltimeout;
     bool enable_compression;
 
+    std::string term_type;
+
     using Protocol_Base<SOCKET>::vte;
     using Protocol_Base<SOCKET>::check_for_resize;
 
-    Protocol_Telnet(VTE<SOCKET>& _vte, unsigned int pt, bool ec) : 
-        Protocol_Base<SOCKET>(_vte), polltimeout(pt), enable_compression(ec) {}
+    Protocol_Telnet(VTE<SOCKET>& _vte, unsigned int pt, bool ec, const std::string& tt) : 
+        Protocol_Base<SOCKET>(_vte), polltimeout(pt), enable_compression(ec), term_type(tt) {}
 
     // Send a resize event to the telnet server.
     void send_resize(unsigned int sw, unsigned int sh) {
@@ -1132,7 +1134,7 @@ struct Protocol_Telnet : public Protocol_Base<SOCKET> {
                         telnetstate = SB_IAC;
 
                     } else if (c == '\x18') {
-                        send_terminal_type("xterm");
+                        send_terminal_type(term_type);
 
                     } else if (c == '\x55') {
                         did_enable_compression = true;
@@ -1476,7 +1478,7 @@ void mainloop_aux(Socket& browser_sock, SOCKET& term_sock, config::Config& cfg) 
 
     vte.set_cursor(cfg.cursor);
 
-    PROTO<SOCKET> protocol(vte, cfg.polling_rate, cfg.compression);
+    PROTO<SOCKET> protocol(vte, cfg.polling_rate, cfg.compression, cfg.term_type);
 
     protocol.resizer(browser_sock, vte.tiler.sw, vte.tiler.sh);
 
@@ -1522,7 +1524,7 @@ void mainloop(Socket& browser_sock, const config::Config& _cfg, const std::strin
     
     if (cfg.command.size() > 0) {
 
-        Process proc(cfg.command);
+        Process proc(cfg.command, cfg.term_type);
 
         mainloop_aux<Protocol_Pty>(browser_sock, proc, cfg);
 

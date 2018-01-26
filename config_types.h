@@ -25,11 +25,13 @@ struct Config {
 
     bool compression;
 
+    std::string term_type;
+
     Config() : 
         tile_width(16), tile_height(16),
         screen_width(80), screen_height(25),
         fullscreen(true), cursor(true), polling_rate(50),
-        port(23), compression(true)
+        port(23), compression(true), term_type("screen")
         {}
 };
 
