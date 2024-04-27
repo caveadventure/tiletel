@@ -8,5 +8,5 @@ stdenv.mkDerivation {
   version = "20220404";
   src = nix-gitignore.gitignoreSourcePure [ ./.gitignore ] ./.;
   nativeBuildInputs = [ cmake gd ];
-  cmakeFlags = "-DTOOLKIT=web";
+  cmakeFlags = [ "-DTOOLKIT=web" ];
 }
