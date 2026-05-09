@@ -1,5 +1,5 @@
 
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required (VERSION 4.0)
 project (tiletel)
 
 SET(CMAKE_BUILD_TYPE "Release")
